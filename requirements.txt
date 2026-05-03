@@ -1,0 +1,42 @@
+# Core Django
+Django==4.2.29
+djangorestframework==3.14.0
+django-cors-headers==4.3.1
+
+# Database
+psycopg2-binary==2.9.9
+python-decouple==3.8
+
+# JWT Authentication
+djangorestframework-simplejwt==5.5.1
+PyJWT==2.12.1
+
+# Security & Password Hashing
+bcrypt==4.1.1
+cryptography==41.0.7
+django-ratelimit==4.1.0
+
+# Email & OAuth
+django-anymail==10.2
+google-auth==2.25.2
+google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.0
+requests==2.31.0
+
+# Email validation
+email-validator==2.1.0
+
+# Testing
+pytest==7.4.3
+pytest-django==4.7.0
+pytest-cov==4.1.0
+factory-boy==3.3.0
+faker==21.0.0
+
+# Monitoring
+sentry-sdk==1.38.0
+
+# Development
+python-dotenv==1.0.0
+django-debug-toolbar==4.2.0
+cloudinary==1.32.0
