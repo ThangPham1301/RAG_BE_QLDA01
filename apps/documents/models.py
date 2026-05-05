@@ -1,6 +1,5 @@
 from django.db import models
 from django.conf import settings
-from apps.projects.models import Project
 
 
 class Document(models.Model):
@@ -19,7 +18,7 @@ class Document(models.Model):
 		INDEXED = 'indexed', 'Indexed'
 		FAILED = 'failed', 'Failed'
 
-	project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='documents')
+	chat_session = models.ForeignKey('chatbot.ChatSession', on_delete=models.CASCADE, related_name='documents')
 	uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='uploaded_documents')
 	uploaded_chat_session = models.ForeignKey(
 		'chatbot.ChatSession',
@@ -50,10 +49,10 @@ class Document(models.Model):
 	class Meta:
 		ordering = ['-uploaded_at']
 		indexes = [
-			models.Index(fields=['project', '-uploaded_at']),
+			models.Index(fields=['chat_session', '-uploaded_at']),
 			models.Index(fields=['uploaded_by', '-uploaded_at']),
 			models.Index(fields=['index_status']),
 		]
 
 	def __str__(self):
-		return f"{self.title} ({self.project.name})"
+		return f"{self.title} ({self.chat_session.title})"

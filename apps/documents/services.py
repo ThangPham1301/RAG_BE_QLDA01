@@ -36,47 +36,65 @@ def _extract_text_from_txt(path: str) -> str:
 
 def populate_document_extracted_text(document: Document) -> int:
 	logger.info(f'[populate_document_extracted_text] Starting for doc_id={document.id}')
+	
 	if not document.file:
 		logger.warning(f'[populate_document_extracted_text] No file attached')
-		return 0
+		raise ValueError('Document has no file attached')
 
-	file_path = getattr(document.file, 'path', None)
-	if not file_path:
-		logger.warning(f'[populate_document_extracted_text] No file path')
-		return 0
-
+	# Get file path from Django's FileField
+	try:
+		file_path = document.file.path
+	except Exception as e:
+		logger.error(f'[populate_document_extracted_text] Could not get file.path: {e}')
+		raise
+	
+	logger.info(f'[populate_document_extracted_text] File path: {file_path}')
+	
 	abs_path = Path(file_path)
 	if not abs_path.exists():
-		logger.error(f'[populate_document_extracted_text] File not found at {abs_path}')
-		return 0
+		logger.error(f'[populate_document_extracted_text] File NOT FOUND at {abs_path}')
+		raise FileNotFoundError(f'File not found: {file_path}')
 
-	logger.info(f'[populate_document_extracted_text] File exists: {abs_path}')
+	file_size = abs_path.stat().st_size
+	logger.info(f'[populate_document_extracted_text] File exists: {abs_path}, size={file_size} bytes')
+	
 	file_type = (document.file_type or abs_path.suffix.lstrip('.')).lower()
-	logger.info(f'[populate_document_extracted_text] File type: {file_type}')
+	logger.info(f'[populate_document_extracted_text] Detected file_type={file_type} (document.file_type={document.file_type})')
+	
 	try:
-		if file_type == Document.FileType.PDF:
+		if file_type == Document.FileType.PDF or file_type == 'pdf':
+			logger.info(f'[populate_document_extracted_text] Extracting as PDF')
 			text = extract_text_from_pdf(str(abs_path))
-		elif file_type == Document.FileType.DOCX:
+			logger.info(f'[populate_document_extracted_text] PDF extraction result: {len(text or "")} chars')
+		elif file_type == Document.FileType.DOCX or file_type == 'docx':
+			logger.info(f'[populate_document_extracted_text] Extracting as DOCX')
 			text = _extract_text_from_docx(str(abs_path))
-		elif file_type == Document.FileType.TXT:
+			logger.info(f'[populate_document_extracted_text] DOCX extraction result: {len(text or "")} chars')
+		elif file_type == Document.FileType.TXT or file_type == 'txt':
+			logger.info(f'[populate_document_extracted_text] Extracting as TXT')
 			text = _extract_text_from_txt(str(abs_path))
+			logger.info(f'[populate_document_extracted_text] TXT extraction result: {len(text or "")} chars')
 		else:
+			logger.warning(f'[populate_document_extracted_text] Unknown file type: {file_type}, returning empty')
 			text = ''
-		logger.info(f'[populate_document_extracted_text] Extracted text len={len(text or "")}')
+			
 	except Exception as e:
-		logger.error(f'[populate_document_extracted_text] Extract error: {e}', exc_info=True)
+		logger.error(f'[populate_document_extracted_text] Extraction failed: {e}', exc_info=True)
 		raise
 
+	if not text or not text.strip():
+		logger.warning(f'[populate_document_extracted_text] Extracted text is empty or whitespace-only')
+	
 	document.extracted_text = text or ''
 	document.save(update_fields=['extracted_text'])
-	logger.info(f'[populate_document_extracted_text] Saved extracted_text, len={len(document.extracted_text)}')
+	logger.info(f'[populate_document_extracted_text] Saved extracted_text: {len(document.extracted_text)} chars')
 	return len(document.extracted_text)
 
 
 def index_document_to_chroma(document: Document, chunk_size: int = 1000, overlap: int = 200) -> int:
-	logger.info(f'[index_document_to_chroma] Starting for doc_id={document.id}, project_id={document.project_id}')
+	logger.info(f'[index_document_to_chroma] Starting for doc_id={document.id}, chat_session_id={document.chat_session_id}, project_id={document.chat_session.project_id}')
 	Document.objects.filter(pk=document.pk).update(index_status=Document.IndexStatus.INDEXING, index_error='')
-	document.refresh_from_db(fields=['extracted_text', 'file', 'project_id', 'index_status', 'index_error'])
+	document.refresh_from_db(fields=['extracted_text', 'file', 'chat_session_id', 'index_status', 'index_error'])
 
 	try:
 		text = document.extracted_text or ''
@@ -117,7 +135,8 @@ def index_document_to_chroma(document: Document, chunk_size: int = 1000, overlap
 					'id': f'{document.id}_{index}',
 					'text': chunk,
 					'metadata': {
-						'project_id': document.project_id,
+						'project_id': document.chat_session.project_id,
+						'chat_session_id': document.chat_session_id,
 						'document_id': document.id,
 						'file_name': file_name,
 						'page': None,
@@ -129,7 +148,7 @@ def index_document_to_chroma(document: Document, chunk_size: int = 1000, overlap
 		logger.info(f'[index_document_to_chroma] Vector items prepared: {len(vector_items)}')
 		logger.info(f'[index_document_to_chroma] Calling ChromaService.upsert_chunks')
 		chroma = ChromaService()
-		chroma.upsert_chunks(project_id=document.project_id, chunks=vector_items)
+		chroma.upsert_chunks(project_id=document.chat_session.project_id, chunks=vector_items)
 		logger.info(f'[index_document_to_chroma] Upsert complete')
 		Document.objects.filter(pk=document.pk).update(
 			index_status=Document.IndexStatus.INDEXED,

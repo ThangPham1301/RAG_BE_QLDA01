@@ -15,33 +15,41 @@ class DocumentViewSet(viewsets.ModelViewSet):
     serializer_class = DocumentSerializer
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
-    filterset_fields = ['project', 'file_type', 'index_status']
+    filterset_fields = ['chat_session', 'file_type', 'index_status']
 
     def get_queryset(self):
         user = self.request.user
-        # Users can only see documents they uploaded, or in projects they own
-        from apps.projects.models import Project
-        user_projects = Project.objects.filter(owner=user).values_list('id', flat=True)
         queryset = Document.objects.filter(
-            models.Q(uploaded_by=user) | models.Q(project_id__in=user_projects),
-            is_deleted=False
-        ).order_by('-uploaded_at')
+            chat_session__user=user,
+            is_deleted=False,
+        ).select_related('chat_session', 'chat_session__project', 'uploaded_by').order_by('-uploaded_at')
 
-        project_id = self.request.query_params.get('project')
-        if project_id:
-            queryset = queryset.filter(project_id=project_id)
+        chat_session_id = self.request.query_params.get('chat_session_id')
+        if chat_session_id:
+            queryset = queryset.filter(chat_session_id=chat_session_id)
 
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        if not request.query_params.get('chat_session_id'):
+            return Response({'error': 'chat_session_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        return super().list(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
         """Handle document upload (single or multiple)"""
         files = request.FILES.getlist('files')
+<<<<<<< HEAD
         project_id = request.data.get('project')
         chat_session_id = request.data.get('chat_session')
         
         if not project_id:
+=======
+        chat_session_id = request.data.get('chat_session_id') or request.data.get('chat_session')
+
+        if not chat_session_id:
+>>>>>>> 5f5f0ac (fix chat structure)
             return Response(
-                {'error': 'project is required'},
+                {'error': 'chat_session_id is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -54,14 +62,17 @@ class DocumentViewSet(viewsets.ModelViewSet):
         for file_obj in file_list:
             try:
                 data = {
-                    'project': project_id,
+                    'chat_session': chat_session_id,
                     'title': request.data.get('title', ''),
                     'file': file_obj,
+<<<<<<< HEAD
                     'uploaded_chat_session': chat_session_id or None,
+=======
+>>>>>>> 5f5f0ac (fix chat structure)
                 }
                 serializer = DocumentUploadSerializer(data=data, context={'request': request})
                 if serializer.is_valid():
-                    doc = serializer.save(uploaded_by=request.user)
+                    doc = serializer.save()
                     self._schedule_indexing(doc)
                     documents.append(doc)
                 else:
@@ -95,19 +106,24 @@ class DocumentViewSet(viewsets.ModelViewSet):
             # Import here to avoid circular imports
             from .services import populate_document_extracted_text, index_document_to_chroma
             
+            logger.info(f'[_schedule_indexing] Starting extraction for doc_id={document.id}')
             populate_document_extracted_text(document)
+            
+            logger.info(f'[_schedule_indexing] Starting Chroma indexing for doc_id={document.id}')
             indexed_chunks = index_document_to_chroma(document)
             
             document.index_status = Document.IndexStatus.INDEXED
             document.indexed_chunks = indexed_chunks
             document.indexed_at = timezone.now()
             document.save(update_fields=['index_status', 'indexed_chunks', 'indexed_at'])
+            logger.info(f'[_schedule_indexing] Completed successfully for doc_id={document.id}, chunks={indexed_chunks}')
             
         except Exception as e:
-            logger.error(f"Indexing failed for {document.id}: {e}", exc_info=True)
+            logger.error(f"[_schedule_indexing] Indexing failed for doc_id={document.id}: {e}", exc_info=True)
             document.index_status = Document.IndexStatus.FAILED
-            document.index_error = str(e)
+            document.index_error = str(e)[:500]  # Truncate to 500 chars
             document.save(update_fields=['index_status', 'index_error'])
+            logger.error(f"[_schedule_indexing] Document marked as FAILED with error: {document.index_error}")
 
     @action(detail=True, methods=['post'])
     def reindex(self, request, pk=None):

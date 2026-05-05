@@ -34,7 +34,10 @@ class DocumentUploadFlowTests(APITestCase):
 		response = self.client.post(
 			'/api/documents/',
 			{
+<<<<<<< HEAD
 				'project': self.project.id,
+=======
+>>>>>>> 5f5f0ac (fix chat structure)
 				'chat_session': self.chat_session.id,
 				'file': file_obj,
 				'title': 'Meeting Notes',
@@ -46,8 +49,13 @@ class DocumentUploadFlowTests(APITestCase):
 		self.assertEqual(response.data['uploaded_count'], 1)
 		created_id = response.data['documents'][0]['id']
 		document = Document.objects.get(id=created_id)
+<<<<<<< HEAD
 		self.assertEqual(document.uploaded_chat_session_id, self.chat_session.id)
 		self.assertEqual(document.project_id, self.project.id)
+=======
+		self.assertEqual(document.chat_session_id, self.chat_session.id)
+		self.assertEqual(document.chat_session.project_id, self.project.id)
+>>>>>>> 5f5f0ac (fix chat structure)
 
 	@patch('apps.documents.views.DocumentViewSet._schedule_indexing')
 	def test_upload_rejects_chat_session_outside_project(self, _mock_indexing):
@@ -56,7 +64,10 @@ class DocumentUploadFlowTests(APITestCase):
 		response = self.client.post(
 			'/api/documents/',
 			{
+<<<<<<< HEAD
 				'project': self.project.id,
+=======
+>>>>>>> 5f5f0ac (fix chat structure)
 				'chat_session': self.other_chat_session.id,
 				'file': file_obj,
 				'title': 'Invalid Link',
@@ -65,4 +76,8 @@ class DocumentUploadFlowTests(APITestCase):
 		)
 
 		self.assertEqual(response.status_code, 400)
+<<<<<<< HEAD
 		self.assertIn('uploaded_chat_session', str(response.data))
+=======
+		self.assertIn('chat_session', str(response.data))
+>>>>>>> 5f5f0ac (fix chat structure)

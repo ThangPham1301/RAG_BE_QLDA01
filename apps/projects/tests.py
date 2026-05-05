@@ -28,9 +28,14 @@ class ProjectStatisticsEndpointTests(APITestCase):
 		ChatSession.objects.create(project=self.other_project, user=self.other_user, title='Other User Chat')
 
 		Document.objects.create(
+<<<<<<< HEAD
 			project=self.project,
 			uploaded_by=self.user,
 			uploaded_chat_session=self.chat_session,
+=======
+			chat_session=self.chat_session,
+			uploaded_by=self.user,
+>>>>>>> 5f5f0ac (fix chat structure)
 			title='Indexed Doc',
 			file=SimpleUploadedFile('indexed.txt', b'Indexed content', content_type='text/plain'),
 			file_type=Document.FileType.TXT,
@@ -38,7 +43,11 @@ class ProjectStatisticsEndpointTests(APITestCase):
 			indexed_chunks=8,
 		)
 		Document.objects.create(
+<<<<<<< HEAD
 			project=self.project,
+=======
+			chat_session=self.chat_session,
+>>>>>>> 5f5f0ac (fix chat structure)
 			uploaded_by=self.user,
 			title='Failed Doc',
 			file=SimpleUploadedFile('failed.txt', b'Failed content', content_type='text/plain'),
@@ -47,7 +56,11 @@ class ProjectStatisticsEndpointTests(APITestCase):
 			indexed_chunks=0,
 		)
 		Document.objects.create(
+<<<<<<< HEAD
 			project=self.other_project,
+=======
+			chat_session=ChatSession.objects.create(project=self.other_project, user=self.other_user, title='Other Doc Chat'),
+>>>>>>> 5f5f0ac (fix chat structure)
 			uploaded_by=self.other_user,
 			title='Other User Doc',
 			file=SimpleUploadedFile('other.txt', b'Other content', content_type='text/plain'),

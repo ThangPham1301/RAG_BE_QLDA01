@@ -2,6 +2,7 @@
 import logging
 import os
 import re
+import time
 from typing import Dict, Optional
 
 import requests
@@ -76,7 +77,7 @@ class ChatService:
 		logger.info(f'[ChatService] Session created: id={session.id}')
 		return session
 	
-	def ask_question(self, session_id: int, question: str, selected_document_ids: Optional[list[int]] = None) -> Dict:
+	def ask_question(self, session_id: int, question: str) -> Dict:
 		"""Hỏi đáp qua chat - orchestrate toàn bộ flow.
 		
 		Flow:
@@ -107,7 +108,13 @@ class ChatService:
 			raise ValueError(f'Session {session_id} không tồn tại')
 		
 		project_id = session.project_id
-		selected_document_ids = selected_document_ids if selected_document_ids is not None else (session.selected_document_ids or [])
+		documents = list(session.documents.filter(is_deleted=False).order_by('uploaded_at'))
+		logger.info(
+			'[ChatService] session=%s project=%s documents=%s',
+			session_id,
+			project_id,
+			[d.id for d in documents],
+		)
 		
 		# [2] Lưu user message ngay
 		user_msg = ChatMessage.objects.create(
@@ -119,6 +126,7 @@ class ChatService:
 		
 		# [3] RAG generation
 		try:
+			started_at = time.perf_counter()
 			if self._is_small_talk(question):
 				logger.info('[ChatService] Small-talk mode detected, bypassing retrieval')
 				answer_text = self._answer_small_talk(question)
@@ -127,10 +135,10 @@ class ChatService:
 				logger.info('[ChatService] Starting RAG generation (grounded mode)')
 				result = self.rag.answer_question(
 					project_id=project_id,
+					chat_session_id=session.id,
 					question=question,
 					top_k=self.default_top_k,
 					instruction=get_default_instruction(),
-					document_ids=selected_document_ids,
 				)
 				
 				answer_text = result.get('answer', '')
@@ -140,7 +148,7 @@ class ChatService:
 				if not retrieved_chunks:
 					answer_text = 'Không có thông tin trong tài liệu đã chọn để trả lời câu hỏi này.'
 
-			logger.info(f'[ChatService] Generation completed, answer_len={len(answer_text)}')
+			logger.info(f'[ChatService] Generation completed, answer_len={len(answer_text)}, chunks={len(retrieved_chunks)}, elapsed={time.perf_counter() - started_at:.2f}s')
 			
 		except Exception as exc:
 			logger.error(f'[ChatService] RAG failed: {exc}', exc_info=True)
@@ -161,7 +169,7 @@ class ChatService:
 			}
 			documents = {
 				doc.id: doc
-				for doc in Document.objects.filter(id__in=doc_ids, project_id=project_id)
+				for doc in Document.objects.filter(id__in=doc_ids, chat_session_id=session.id)
 			}
 
 			context_objects = []

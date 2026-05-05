@@ -1,0 +1,32 @@
+# Python cache full
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual env (đã đúng)
+.venv/
+venv/
+
+# Environment
+.env
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Database
+*.sqlite3
+
+# Chroma vector DB
+chroma_db/
+
+# Media uploads
+media/
+
+# IDE
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

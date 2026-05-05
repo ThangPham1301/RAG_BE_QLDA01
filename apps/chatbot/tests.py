@@ -21,7 +21,7 @@ class ChatServiceArchitectureTests(TestCase):
 		)
 		self.project = Project.objects.create(owner=self.user, name='Service Test Project')
 		self.document = Document.objects.create(
-			project=self.project,
+			chat_session=ChatSession.objects.create(project=self.project, user=self.user, title='Document Session'),
 			uploaded_by=self.user,
 			title='Service Test Document',
 			file=SimpleUploadedFile('service_test.txt', b'Policy content for testing'),
@@ -33,7 +33,6 @@ class ChatServiceArchitectureTests(TestCase):
 			project=self.project,
 			user=self.user,
 			title='New Chat',
-			selected_document_ids=[self.document.id],
 		)
 
 	def test_ask_question_creates_user_assistant_and_contexts(self):
@@ -64,7 +63,6 @@ class ChatServiceArchitectureTests(TestCase):
 			service,
 			session_id=self.session.id,
 			question='Hay tom tat noi dung chinh',
-			selected_document_ids=[self.document.id],
 		)
 
 		self.assertEqual(sorted(result.keys()), ['answer', 'contexts', 'message'])
@@ -98,7 +96,7 @@ class ChatSendMessageEndpointTests(APITestCase):
 		self.client.force_authenticate(user=self.user)
 
 	def test_send_message_creates_exactly_two_messages(self):
-		def fake_ask_question(_service, session_id, question, selected_document_ids=None):
+		def fake_ask_question(_service, session_id, question):
 			session = ChatSession.objects.get(id=session_id)
 			ChatMessage.objects.create(
 				chat_session=session,
@@ -126,10 +124,10 @@ class ChatSendMessageEndpointTests(APITestCase):
 		with patch('apps.chatbot.chat_service.ChatService.__init__', return_value=None):
 			with patch('apps.chatbot.chat_service.ChatService.ask_question', new=fake_ask_question):
 				response = self.client.post(
-					f'/api/chat/sessions/{self.session.id}/send_message/',
+					'/api/chat/send/',
 					{
+						'chat_session_id': self.session.id,
 						'content': 'Endpoint question',
-						'selected_document_ids': [],
 					},
 					format='json',
 				)

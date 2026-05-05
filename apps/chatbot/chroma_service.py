@@ -44,7 +44,7 @@ class ChromaService:
         embeddings = self.embedding.embed_texts(texts)
         col.upsert(ids=ids, documents=texts, metadatas=metadatas, embeddings=embeddings)
 
-    def get_relevant(self, project_id: int, query: str, top_k: int = 5, document_ids: Optional[List[int]] = None) -> List[Dict]:
+    def get_relevant(self, project_id: int, query: str, top_k: int = 5, chat_session_id: Optional[int] = None) -> List[Dict]:
         col = self.get_or_create_collection(project_id)
         q_emb = self.embedding.embed_texts([query])[0]
         query_kwargs = {
@@ -53,8 +53,8 @@ class ChromaService:
             'include': ['documents', 'metadatas', 'distances'],
         }
 
-        if document_ids:
-            query_kwargs['where'] = {'document_id': {'$in': [int(doc_id) for doc_id in document_ids]}}
+        if chat_session_id is not None:
+            query_kwargs['where'] = {'chat_session_id': int(chat_session_id)}
 
         # New Chroma API: don't include 'ids' in include list
         try:
@@ -71,10 +71,6 @@ class ChromaService:
         dists = results.get('distances', [[]])[0]
         ids = results.get('ids', [[]])[0]  # ids are returned automatically
         for did, doc, meta, dist in zip(ids, docs, metas, dists):
-            if document_ids:
-                meta_doc_id = meta.get('document_id') if isinstance(meta, dict) else None
-                if meta_doc_id not in document_ids:
-                    continue
             out.append({'id': did, 'text': doc, 'metadata': meta, 'score': float(dist)})
         return out
 

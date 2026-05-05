@@ -26,6 +26,7 @@ class ChatMessageSerializer(serializers.ModelSerializer):
 
 class ChatSessionSerializer(serializers.ModelSerializer):
 	message_count = serializers.SerializerMethodField()
+	documents_count = serializers.SerializerMethodField()
 	project_name = serializers.CharField(source='project.name', read_only=True)
 	user_email = serializers.CharField(source='user.email', read_only=True)
 
@@ -33,22 +34,16 @@ class ChatSessionSerializer(serializers.ModelSerializer):
 		model = ChatSession
 		fields = [
 			'id', 'project', 'project_name', 'user', 'user_email',
-			'title', 'description', 'message_count', 'created_at',
-			'updated_at', 'last_message_at', 'is_archived', 'selected_document_ids'
+			'title', 'description', 'message_count', 'documents_count', 'created_at',
+			'updated_at', 'last_message_at', 'is_archived'
 		]
-		read_only_fields = ['id', 'user', 'user_email', 'message_count', 'created_at', 'updated_at', 'project_name']
+		read_only_fields = ['id', 'user', 'user_email', 'message_count', 'documents_count', 'created_at', 'updated_at', 'project_name']
 
 	def get_message_count(self, obj):
 		return obj.messages.count()
 
-	def validate_selected_document_ids(self, value):
-		seen = set()
-		result = []
-		for doc_id in value:
-			if doc_id not in seen:
-				seen.add(doc_id)
-				result.append(doc_id)
-		return result
+	def get_documents_count(self, obj):
+		return obj.documents.filter(is_deleted=False).count()
 
 	def create(self, validated_data):
 		validated_data['user'] = self.context['request'].user
@@ -57,33 +52,23 @@ class ChatSessionSerializer(serializers.ModelSerializer):
 
 class ChatSessionDetailSerializer(ChatSessionSerializer):
 	messages = ChatMessageSerializer(many=True, read_only=True)
+	documents = serializers.SerializerMethodField()
 
 	class Meta(ChatSessionSerializer.Meta):
-		fields = ChatSessionSerializer.Meta.fields + ['messages']
+		fields = ChatSessionSerializer.Meta.fields + ['messages', 'documents']
+
+	def get_documents(self, obj):
+		from apps.documents.serializers import DocumentSerializer
+		return DocumentSerializer(obj.documents.filter(is_deleted=False).order_by('-uploaded_at'), many=True, context=self.context).data
 
 
 class ChatMessageCreateSerializer(serializers.Serializer):
 	content = serializers.CharField(max_length=10000)
-	selected_document_ids = serializers.ListField(
-		child=serializers.IntegerField(),
-		required=False,
-		allow_empty=True,
-		default=list
-	)
 
 	def validate_content(self, value):
 		if not value or len(value.strip()) == 0:
 			raise serializers.ValidationError("Content không được để trống.")
 		return value
-
-	def validate_selected_document_ids(self, value):
-		seen = set()
-		result = []
-		for doc_id in value:
-			if doc_id not in seen:
-				seen.add(doc_id)
-				result.append(doc_id)
-		return result
 
 
 class ChatFeedbackSerializer(serializers.ModelSerializer):

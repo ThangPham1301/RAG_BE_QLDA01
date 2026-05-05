@@ -43,7 +43,7 @@ class RAGService:
         except Exception:
             self.answer_max_tokens = 256
 
-    def answer_question(self, project_id: int, question: str, top_k: Optional[int] = None, instruction: Optional[str] = None, document_ids: Optional[List[int]] = None) -> Dict[str, object]:
+    def answer_question(self, project_id: int, chat_session_id: int, question: str, top_k: Optional[int] = None, instruction: Optional[str] = None) -> Dict[str, object]:
         """Answer a question using retrieval + LLM.
 
         Returns a dict with keys:
@@ -55,7 +55,7 @@ class RAGService:
         logger.debug('RAGService.answer_question project=%s top_k=%s', project_id, top_k)
 
         # 1) retrieve
-        items = self.retriever.get_relevant(project_id=project_id, query=question, top_k=top_k, document_ids=document_ids)
+        items = self.retriever.get_relevant(project_id=project_id, query=question, top_k=top_k, chat_session_id=chat_session_id)
         texts = [it.get('text', '') for it in items]
 
         # 2) build prompt

@@ -20,7 +20,6 @@ class ChatSession(models.Model):
 	
 	is_archived = models.BooleanField(default=False)
 	token_count = models.PositiveIntegerField(default=0)
-	selected_document_ids = models.JSONField(default=list, blank=True)
 	
 	# Soft delete support
 	deleted_at = models.DateTimeField(null=True, blank=True)

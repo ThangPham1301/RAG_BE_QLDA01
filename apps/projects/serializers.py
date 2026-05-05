@@ -16,7 +16,8 @@ class ProjectSerializer(serializers.ModelSerializer):
 		read_only_fields = ['id', 'owner', 'owner_email', 'created_at', 'updated_at']
 
 	def get_documents_count(self, obj):
-		return obj.documents.count()
+		from apps.documents.models import Document
+		return Document.objects.filter(chat_session__project=obj, is_deleted=False).count()
 
 	def get_chats_count(self, obj):
 		return obj.chat_sessions.count()
