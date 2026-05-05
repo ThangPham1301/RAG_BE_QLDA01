@@ -44,10 +44,14 @@ INSTALLED_APPS = [
     # Third-party apps
     'rest_framework',
     'corsheaders',
-    # 'django_ratelimit',  # disabled for local setup (requires a shared cache)
     
-    # Custom apps
+    # Custom apps - Auth
     'apps.auth',
+    
+    # Custom apps - RAG System
+    'apps.projects',
+    'apps.documents',
+    'apps.chatbot',
 ]
 
 MIDDLEWARE = [
@@ -292,6 +296,106 @@ CACHES = {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'rag-cache',
     }
+}
+
+# ============================================================================
+# Custom User Model
+# ============================================================================
+
+AUTH_USER_MODEL = 'auth.User'
+
+# ============================================================================
+# Media Files Configuration
+# ============================================================================
+
+MEDIA_URL = config('MEDIA_URL', default='/media/')
+MEDIA_ROOT = BASE_DIR / config('MEDIA_ROOT', default='media')
+
+# ============================================================================
+# RAG System Configuration
+# ============================================================================
+
+# Ollama LLM Configuration
+OLLAMA_HOST = config('OLLAMA_HOST', default='http://localhost:11434')
+OLLAMA_MODEL = config('OLLAMA_MODEL', default='qwen3-vl:4b')
+OLLAMA_TIMEOUT = config('OLLAMA_TIMEOUT', default=120, cast=int)
+OLLAMA_TEMPERATURE = config('OLLAMA_TEMPERATURE', default=0.0, cast=float)
+
+# ChromaDB Vector Store Configuration
+CHROMA_DB_PATH = config('CHROMA_DB_PATH', default=str(BASE_DIR / 'chroma_db'))
+CHROMA_COLLECTION_PREFIX = config('CHROMA_COLLECTION_PREFIX', default='project_')
+
+# Embedding Model Configuration
+EMBEDDING_MODEL_NAME = config('EMBEDDING_MODEL_NAME', default='sentence-transformers/all-MiniLM-L6-v2')
+EMBEDDING_DIMENSION = config('EMBEDDING_DIMENSION', default=384, cast=int)
+
+# Document Processing Configuration
+DOCUMENT_CHUNK_SIZE = config('DOCUMENT_CHUNK_SIZE', default=512, cast=int)
+DOCUMENT_CHUNK_OVERLAP = config('DOCUMENT_CHUNK_OVERLAP', default=51, cast=int)
+DOCUMENT_MAX_FILE_SIZE = config('DOCUMENT_MAX_FILE_SIZE', default=100 * 1024 * 1024, cast=int)  # 100MB
+
+# Supported File Types
+SUPPORTED_FILE_TYPES = ['pdf', 'docx', 'txt', 'image', 'pptx', 'xlsx']
+
+# OCR Configuration (for PDF scans)
+OCR_ENABLED = config('OCR_ENABLED', default=True, cast=bool)
+OCR_LANGUAGE = config('OCR_LANGUAGE', default='vie')  # Vietnamese
+
+# RAG Pipeline Configuration
+RAG_TOP_K_CONTEXT = config('RAG_TOP_K_CONTEXT', default=3, cast=int)
+RAG_SIMILARITY_THRESHOLD = config('RAG_SIMILARITY_THRESHOLD', default=0.5, cast=float)
+RAG_MAX_CONTEXT_LENGTH = config('RAG_MAX_CONTEXT_LENGTH', default=4000, cast=int)
+
+# Chat Configuration
+CHAT_MAX_TOKENS = config('CHAT_MAX_TOKENS', default=2048, cast=int)
+CHAT_DEFAULT_MODEL = config('CHAT_DEFAULT_MODEL', default='qwen3-vl:4b')
+CHAT_HISTORY_LIMIT = config('CHAT_HISTORY_LIMIT', default=10, cast=int)
+
+# Export Configuration
+EXPORT_FORMAT_TYPES = ['pdf', 'docx', 'txt', 'json', 'csv']
+EXPORT_MAX_RECORDS = config('EXPORT_MAX_RECORDS', default=10000, cast=int)
+
+# Summary Configuration
+SUMMARY_MAX_LENGTH = config('SUMMARY_MAX_LENGTH', default=1000, cast=int)
+SUMMARY_PROMPT = config('SUMMARY_PROMPT', default='Tóm tắt nội dung sau đây một cách ngắn gọn và chính xác')
+
+# Logging
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'django.log',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console', 'file'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'rag': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+    },
 }
 
 # ============================================================================
