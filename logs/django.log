@@ -33842,3 +33842,551 @@ Traceback (most recent call last):
 ModuleNotFoundError: No module named 'chromadb'
 ERROR 2026-05-05 16:30:03,238 log 16576 7600 Internal Server Error: /api/chat/sessions/1/send_message/
 ERROR 2026-05-05 16:30:03,240 basehttp 16576 7600 "POST /api/chat/sessions/1/send_message/ HTTP/1.1" 500 38
+INFO 2026-05-05 17:08:21,726 autoreload 1852 5244 Watching for file changes with StatReloader
+INFO 2026-05-05 17:08:31,000 basehttp 1852 6116 "OPTIONS /api/auth/login HTTP/1.1" 200 0
+INFO 2026-05-05 17:08:31,400 basehttp 1852 6116 "POST /api/auth/login HTTP/1.1" 200 1041
+INFO 2026-05-05 17:08:47,347 basehttp 1852 6116 "POST /api/projects/ HTTP/1.1" 201 249
+INFO 2026-05-05 17:08:47,358 basehttp 1852 6116 "OPTIONS /api/documents/?project=3 HTTP/1.1" 200 0
+INFO 2026-05-05 17:08:47,358 basehttp 1852 5544 "OPTIONS /api/chat/sessions/?project_id=3 HTTP/1.1" 200 0
+INFO 2026-05-05 17:08:47,412 basehttp 1852 5544 "GET /api/documents/?project=3 HTTP/1.1" 200 52
+INFO 2026-05-05 17:08:47,420 basehttp 1852 6116 "GET /api/chat/sessions/?project_id=3 HTTP/1.1" 200 413
+INFO 2026-05-05 17:08:47,497 basehttp 1852 6116 "GET /api/chat/sessions/1/ HTTP/1.1" 200 907
+INFO 2026-05-05 17:08:53,407 basehttp 1852 5544 "GET /api/auth/me HTTP/1.1" 200 359
+INFO 2026-05-05 17:08:53,425 basehttp 1852 6116 "GET /api/projects/ HTTP/1.1" 200 802
+INFO 2026-05-05 17:08:53,451 basehttp 1852 5544 "GET /api/auth/me HTTP/1.1" 200 359
+INFO 2026-05-05 17:08:53,592 basehttp 1852 6116 "GET /api/projects/ HTTP/1.1" 200 802
+INFO 2026-05-05 17:08:53,767 basehttp 1852 6116 "GET /api/documents/?project=3 HTTP/1.1" 200 52
+INFO 2026-05-05 17:08:53,774 basehttp 1852 5544 "GET /api/chat/sessions/?project_id=3 HTTP/1.1" 200 413
+INFO 2026-05-05 17:08:53,818 basehttp 1852 6116 "GET /api/documents/?project=3 HTTP/1.1" 200 52
+INFO 2026-05-05 17:08:53,829 basehttp 1852 5544 "GET /api/chat/sessions/?project_id=3 HTTP/1.1" 200 413
+INFO 2026-05-05 17:08:53,895 basehttp 1852 5544 "GET /api/chat/sessions/1/ HTTP/1.1" 200 907
+INFO 2026-05-05 17:08:54,350 basehttp 1852 5544 "GET /api/auth/me HTTP/1.1" 200 359
+INFO 2026-05-05 17:08:54,372 basehttp 1852 6116 "GET /api/projects/ HTTP/1.1" 200 802
+INFO 2026-05-05 17:08:54,402 basehttp 1852 5544 "GET /api/auth/me HTTP/1.1" 200 359
+INFO 2026-05-05 17:08:54,431 basehttp 1852 6116 "GET /api/projects/ HTTP/1.1" 200 802
+INFO 2026-05-05 17:08:54,491 basehttp 1852 6116 "GET /api/documents/?project=3 HTTP/1.1" 200 52
+INFO 2026-05-05 17:08:54,497 basehttp 1852 5544 "GET /api/chat/sessions/?project_id=3 HTTP/1.1" 200 413
+INFO 2026-05-05 17:08:54,555 basehttp 1852 5544 "GET /api/chat/sessions/1/ HTTP/1.1" 200 907
+INFO 2026-05-05 17:08:56,491 basehttp 1852 5544 "GET /api/documents/?project=2 HTTP/1.1" 200 52
+INFO 2026-05-05 17:08:56,497 basehttp 1852 6116 "GET /api/chat/sessions/?project_id=2 HTTP/1.1" 200 413
+INFO 2026-05-05 17:09:21,156 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/modules.json "HTTP/1.1 307 Temporary Redirect"
+WARNING 2026-05-05 17:09:21,156 _http 1852 6116 Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+INFO 2026-05-05 17:09:21,179 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/modules.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:09:21,956 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config_sentence_transformers.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:09:21,976 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config_sentence_transformers.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:09:21,993 model 1852 6116 Loading SentenceTransformer model from sentence-transformers/all-MiniLM-L6-v2.
+INFO 2026-05-05 17:09:22,498 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config_sentence_transformers.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:09:22,520 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config_sentence_transformers.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:09:22,801 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/README.md "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:09:22,820 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/README.md "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:09:23,126 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/modules.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:09:23,148 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/modules.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:09:23,438 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/sentence_bert_config.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:09:23,460 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/sentence_bert_config.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:09:23,756 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/adapter_config.json "HTTP/1.1 404 Not Found"
+INFO 2026-05-05 17:09:24,035 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:09:24,051 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:09:24,529 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/processor_config.json "HTTP/1.1 404 Not Found"
+INFO 2026-05-05 17:09:24,814 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/preprocessor_config.json "HTTP/1.1 404 Not Found"
+INFO 2026-05-05 17:09:25,086 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/video_preprocessor_config.json "HTTP/1.1 404 Not Found"
+INFO 2026-05-05 17:09:25,356 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/preprocessor_config.json "HTTP/1.1 404 Not Found"
+INFO 2026-05-05 17:09:25,632 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:09:25,649 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/tokenizer_config.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:09:25,947 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:09:25,962 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:09:26,246 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:09:26,266 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:09:26,538 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:09:26,560 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/tokenizer_config.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:09:26,837 _client 1852 6116 HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+INFO 2026-05-05 17:09:27,124 _client 1852 6116 HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:09:27,493 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/1_Pooling/config.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:09:27,512 _client 1852 6116 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/1_Pooling%2Fconfig.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:09:27,799 _client 1852 6116 HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2 "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:09:27,806 chat_service 1852 6116 [ChatService.ask_question] session_id=1, question=hallo
+INFO 2026-05-05 17:09:27,816 chat_service 1852 6116 [ChatService] User message saved: id=3
+INFO 2026-05-05 17:09:27,818 chat_service 1852 6116 [ChatService] Starting RAG generation (grounded mode)
+ERROR 2026-05-05 17:09:31,928 llm_service 1852 6116 LLM generation failed: HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/generate (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002408E1A8E00>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))
+Traceback (most recent call last):
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connection.py", line 174, in _new_conn
+    conn = connection.create_connection(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\util\connection.py", line 95, in create_connection
+    raise err
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\util\connection.py", line 85, in create_connection
+    sock.connect(sa)
+ConnectionRefusedError: [WinError 10061] No connection could be made because the target machine actively refused it
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connectionpool.py", line 716, in urlopen
+    httplib_response = self._make_request(
+                       ^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connectionpool.py", line 416, in _make_request
+    conn.request(method, url, **httplib_request_kw)
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connection.py", line 244, in request
+    super(HTTPConnection, self).request(method, url, body=body, headers=headers)
+  File "C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 1338, in request
+    self._send_request(method, url, body, headers, encode_chunked)
+  File "C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 1384, in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+  File "C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 1333, in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+  File "C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 1093, in _send_output
+    self.send(msg)
+  File "C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 1037, in send
+    self.connect()
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connection.py", line 205, in connect
+    conn = self._new_conn()
+           ^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connection.py", line 186, in _new_conn
+    raise NewConnectionError(
+urllib3.exceptions.NewConnectionError: <urllib3.connection.HTTPConnection object at 0x000002408E1A8E00>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+           ^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connectionpool.py", line 802, in urlopen
+    retries = retries.increment(
+              ^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\util\retry.py", line 594, in increment
+    raise MaxRetryError(_pool, url, error or ResponseError(cause))
+urllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/generate (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002408E1A8E00>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\QLDA-RAG\RAG_BE_QLDA01\apps\chatbot\llm_service.py", line 83, in generate
+    resp = requests.post(url, json=payload, timeout=use_timeout, stream=False)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\api.py", line 115, in post
+    return request("post", url, data=data, json=json, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\api.py", line 59, in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\adapters.py", line 519, in send
+    raise ConnectionError(e, request=request)
+requests.exceptions.ConnectionError: HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/generate (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002408E1A8E00>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))
+ERROR 2026-05-05 17:09:31,950 chat_service 1852 6116 [ChatService] RAG failed: HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/generate (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002408E1A8E00>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))
+Traceback (most recent call last):
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connection.py", line 174, in _new_conn
+    conn = connection.create_connection(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\util\connection.py", line 95, in create_connection
+    raise err
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\util\connection.py", line 85, in create_connection
+    sock.connect(sa)
+ConnectionRefusedError: [WinError 10061] No connection could be made because the target machine actively refused it
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connectionpool.py", line 716, in urlopen
+    httplib_response = self._make_request(
+                       ^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connectionpool.py", line 416, in _make_request
+    conn.request(method, url, **httplib_request_kw)
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connection.py", line 244, in request
+    super(HTTPConnection, self).request(method, url, body=body, headers=headers)
+  File "C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 1338, in request
+    self._send_request(method, url, body, headers, encode_chunked)
+  File "C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 1384, in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+  File "C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 1333, in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+  File "C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 1093, in _send_output
+    self.send(msg)
+  File "C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 1037, in send
+    self.connect()
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connection.py", line 205, in connect
+    conn = self._new_conn()
+           ^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connection.py", line 186, in _new_conn
+    raise NewConnectionError(
+urllib3.exceptions.NewConnectionError: <urllib3.connection.HTTPConnection object at 0x000002408E1A8E00>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+           ^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connectionpool.py", line 802, in urlopen
+    retries = retries.increment(
+              ^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\util\retry.py", line 594, in increment
+    raise MaxRetryError(_pool, url, error or ResponseError(cause))
+urllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/generate (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002408E1A8E00>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\QLDA-RAG\RAG_BE_QLDA01\apps\chatbot\chat_service.py", line 127, in ask_question
+    result = self.rag.answer_question(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\RAG_BE_QLDA01\apps\chatbot\rag_service.py", line 70, in answer_question
+    answer = self.llm.generate(prompt, max_tokens=self.answer_max_tokens)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\RAG_BE_QLDA01\apps\chatbot\llm_service.py", line 83, in generate
+    resp = requests.post(url, json=payload, timeout=use_timeout, stream=False)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\api.py", line 115, in post
+    return request("post", url, data=data, json=json, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\api.py", line 59, in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\adapters.py", line 519, in send
+    raise ConnectionError(e, request=request)
+requests.exceptions.ConnectionError: HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/generate (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002408E1A8E00>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))
+INFO 2026-05-05 17:09:31,958 chat_service 1852 6116 [ChatService] Assistant message saved: id=4
+INFO 2026-05-05 17:09:31,958 chat_service 1852 6116 [ChatService] Session updated: 1
+INFO 2026-05-05 17:09:31,958 basehttp 1852 6116 "POST /api/chat/sessions/1/send_message/ HTTP/1.1" 200 454
+INFO 2026-05-05 17:10:41,116 autoreload 1852 5244 D:\QLDA-RAG\RAG_BE_QLDA01\apps\chatbot\chat_service.py changed, reloading.
+INFO 2026-05-05 17:10:42,705 autoreload 3560 19116 Watching for file changes with StatReloader
+INFO 2026-05-05 17:11:21,934 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/modules.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:11:21,958 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/modules.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:11:22,225 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config_sentence_transformers.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:11:22,246 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config_sentence_transformers.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:11:22,247 model 3560 2644 Loading SentenceTransformer model from sentence-transformers/all-MiniLM-L6-v2.
+INFO 2026-05-05 17:11:22,515 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config_sentence_transformers.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:11:22,533 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config_sentence_transformers.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:11:22,817 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/README.md "HTTP/1.1 307 Temporary Redirect"
+WARNING 2026-05-05 17:11:22,817 _http 3560 2644 Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+INFO 2026-05-05 17:11:22,836 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/README.md "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:11:23,119 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/modules.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:11:23,137 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/modules.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:11:23,409 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/sentence_bert_config.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:11:23,425 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/sentence_bert_config.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:11:23,710 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/adapter_config.json "HTTP/1.1 404 Not Found"
+INFO 2026-05-05 17:11:23,993 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:11:24,009 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:11:24,369 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/processor_config.json "HTTP/1.1 404 Not Found"
+INFO 2026-05-05 17:11:24,639 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/preprocessor_config.json "HTTP/1.1 404 Not Found"
+INFO 2026-05-05 17:11:24,924 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/video_preprocessor_config.json "HTTP/1.1 404 Not Found"
+INFO 2026-05-05 17:11:25,199 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/preprocessor_config.json "HTTP/1.1 404 Not Found"
+INFO 2026-05-05 17:11:25,485 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:11:25,503 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/tokenizer_config.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:11:25,777 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:11:25,814 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:11:26,084 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:11:26,104 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/config.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:11:26,390 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:11:26,406 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/tokenizer_config.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:11:26,689 _client 3560 2644 HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+INFO 2026-05-05 17:11:26,969 _client 3560 2644 HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:11:27,279 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/1_Pooling/config.json "HTTP/1.1 307 Temporary Redirect"
+INFO 2026-05-05 17:11:27,301 _client 3560 2644 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/1_Pooling%2Fconfig.json "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:11:27,582 _client 3560 2644 HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2 "HTTP/1.1 200 OK"
+INFO 2026-05-05 17:11:27,587 chat_service 3560 2644 [ChatService.ask_question] session_id=1, question=chào
+INFO 2026-05-05 17:11:27,601 chat_service 3560 2644 [ChatService] User message saved: id=5
+INFO 2026-05-05 17:11:27,601 chat_service 3560 2644 [ChatService] Small-talk mode detected, bypassing retrieval
+ERROR 2026-05-05 17:12:29,675 llm_service 3560 2644 LLM request timed out after 60s: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=60)
+Traceback (most recent call last):
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connectionpool.py", line 468, in _make_request
+    six.raise_from(e, None)
+  File "<string>", line 3, in raise_from
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connectionpool.py", line 463, in _make_request
+    httplib_response = conn.getresponse()
+                       ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+  File "C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\socket.py", line 720, in readinto
+    return self._sock.recv_into(b)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+TimeoutError: timed out
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+           ^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connectionpool.py", line 802, in urlopen
+    retries = retries.increment(
+              ^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\util\retry.py", line 552, in increment
+    raise six.reraise(type(error), error, _stacktrace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\packages\six.py", line 770, in reraise
+    raise value
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connectionpool.py", line 716, in urlopen
+    httplib_response = self._make_request(
+                       ^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connectionpool.py", line 470, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connectionpool.py", line 358, in _raise_timeout
+    raise ReadTimeoutError(
+urllib3.exceptions.ReadTimeoutError: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=60)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\QLDA-RAG\RAG_BE_QLDA01\apps\chatbot\llm_service.py", line 83, in generate
+    resp = requests.post(url, json=payload, timeout=use_timeout, stream=False)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\api.py", line 115, in post
+    return request("post", url, data=data, json=json, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\api.py", line 59, in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=60)
+ERROR 2026-05-05 17:12:29,716 chat_service 3560 2644 [ChatService] RAG failed: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=60)
+Traceback (most recent call last):
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connectionpool.py", line 468, in _make_request
+    six.raise_from(e, None)
+  File "<string>", line 3, in raise_from
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connectionpool.py", line 463, in _make_request
+    httplib_response = conn.getresponse()
+                       ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+  File "C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ADMIN\AppData\Local\Programs\Python\Python312\Lib\socket.py", line 720, in readinto
+    return self._sock.recv_into(b)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+TimeoutError: timed out
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+           ^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connectionpool.py", line 802, in urlopen
+    retries = retries.increment(
+              ^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\util\retry.py", line 552, in increment
+    raise six.reraise(type(error), error, _stacktrace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\packages\six.py", line 770, in reraise
+    raise value
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connectionpool.py", line 716, in urlopen
+    httplib_response = self._make_request(
+                       ^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connectionpool.py", line 470, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+  File "D:\QLDA-RAG\venv\Lib\site-packages\urllib3\connectionpool.py", line 358, in _raise_timeout
+    raise ReadTimeoutError(
+urllib3.exceptions.ReadTimeoutError: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=60)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\QLDA-RAG\RAG_BE_QLDA01\apps\chatbot\chat_service.py", line 124, in ask_question
+    answer_text = self._answer_small_talk(question)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\RAG_BE_QLDA01\apps\chatbot\chat_service.py", line 57, in _answer_small_talk
+    return self.rag.llm.generate(prompt, max_tokens=120, temperature=0.4)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\RAG_BE_QLDA01\apps\chatbot\llm_service.py", line 83, in generate
+    resp = requests.post(url, json=payload, timeout=use_timeout, stream=False)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\api.py", line 115, in post
+    return request("post", url, data=data, json=json, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\api.py", line 59, in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\QLDA-RAG\venv\Lib\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=60)
+INFO 2026-05-05 17:12:29,720 chat_service 3560 2644 [ChatService] Assistant message saved: id=6
+INFO 2026-05-05 17:12:29,722 chat_service 3560 2644 [ChatService] Session updated: 1
+INFO 2026-05-05 17:12:29,726 basehttp 3560 2644 "POST /api/chat/sessions/1/send_message/ HTTP/1.1" 200 370
+INFO 2026-05-05 17:15:40,412 autoreload 3560 19116 D:\QLDA-RAG\RAG_BE_QLDA01\apps\chatbot\chat_service.py changed, reloading.
+INFO 2026-05-05 17:15:41,946 autoreload 17852 18788 Watching for file changes with StatReloader
+INFO 2026-05-05 17:20:56,262 autoreload 17852 18788 D:\QLDA-RAG\RAG_BE_QLDA01\apps\documents\models.py changed, reloading.
+INFO 2026-05-05 17:20:57,020 autoreload 13604 9972 Watching for file changes with StatReloader
+INFO 2026-05-05 17:21:21,253 autoreload 13604 9972 D:\QLDA-RAG\RAG_BE_QLDA01\apps\documents\serializers.py changed, reloading.
+INFO 2026-05-05 17:21:21,914 autoreload 10736 11288 Watching for file changes with StatReloader
+INFO 2026-05-05 17:21:25,692 autoreload 10736 11288 D:\QLDA-RAG\RAG_BE_QLDA01\apps\documents\serializers.py changed, reloading.
+INFO 2026-05-05 17:21:26,365 autoreload 13848 2172 Watching for file changes with StatReloader
+INFO 2026-05-05 17:21:31,154 autoreload 13848 2172 D:\QLDA-RAG\RAG_BE_QLDA01\apps\documents\views.py changed, reloading.
+INFO 2026-05-05 17:21:31,802 autoreload 10412 8756 Watching for file changes with StatReloader
+INFO 2026-05-05 17:21:40,701 autoreload 10412 8756 D:\QLDA-RAG\RAG_BE_QLDA01\apps\projects\views.py changed, reloading.
+INFO 2026-05-05 17:21:41,379 autoreload 16460 9940 Watching for file changes with StatReloader
+INFO 2026-05-05 17:26:01,902 basehttp 16460 228 "GET /api/auth/me HTTP/1.1" 200 359
+INFO 2026-05-05 17:26:01,914 basehttp 16460 416 "GET /api/projects/ HTTP/1.1" 200 802
+INFO 2026-05-05 17:26:01,973 basehttp 16460 416 "GET /api/projects/ HTTP/1.1" 200 802
+INFO 2026-05-05 17:26:02,048 basehttp 16460 228 "GET /api/auth/me HTTP/1.1" 200 359
+INFO 2026-05-05 17:26:02,160 basehttp 16460 228 "GET /api/documents/?project=3 HTTP/1.1" 200 52
+INFO 2026-05-05 17:26:02,203 basehttp 16460 228 "GET /api/documents/?project=3 HTTP/1.1" 200 52
+INFO 2026-05-05 17:26:02,272 basehttp 16460 416 "GET /api/chat/sessions/?project_id=3 HTTP/1.1" 200 413
+INFO 2026-05-05 17:26:02,323 basehttp 16460 416 "GET /api/chat/sessions/?project_id=3 HTTP/1.1" 200 413
+INFO 2026-05-05 17:26:02,389 basehttp 16460 416 "GET /api/chat/sessions/1/ HTTP/1.1" 200 1965
+INFO 2026-05-05 17:30:20,153 autoreload 5964 6716 Watching for file changes with StatReloader
+INFO 2026-05-05 17:30:50,586 autoreload 18064 18236 Watching for file changes with StatReloader
+INFO 2026-05-05 17:30:56,666 basehttp 18064 17724 "GET /api/auth/me HTTP/1.1" 200 359
+INFO 2026-05-05 17:30:56,678 basehttp 18064 15684 "GET /api/projects/ HTTP/1.1" 200 802
+INFO 2026-05-05 17:30:56,714 basehttp 18064 17724 "GET /api/auth/me HTTP/1.1" 200 359
+INFO 2026-05-05 17:30:56,741 basehttp 18064 15684 "GET /api/projects/ HTTP/1.1" 200 802
+INFO 2026-05-05 17:30:56,799 basehttp 18064 15684 "GET /api/documents/?project=3 HTTP/1.1" 200 52
+INFO 2026-05-05 17:30:56,913 basehttp 18064 17724 "GET /api/chat/sessions/?project_id=3 HTTP/1.1" 200 413
+INFO 2026-05-05 17:30:56,979 basehttp 18064 17724 "GET /api/chat/sessions/1/ HTTP/1.1" 200 1965
+INFO 2026-05-05 17:30:57,860 basehttp 18064 17724 "OPTIONS /api/documents/ HTTP/1.1" 200 0
+INFO 2026-05-05 17:30:57,860 basehttp 18064 15684 "OPTIONS /api/documents/ HTTP/1.1" 200 0
+INFO 2026-05-05 17:30:57,917 basehttp 18064 15684 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:30:57,973 basehttp 18064 15684 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:31:02,757 basehttp 18064 15684 "GET /api/documents/?project=3 HTTP/1.1" 200 52
+INFO 2026-05-05 17:31:02,766 basehttp 18064 17724 "GET /api/chat/sessions/?project_id=3 HTTP/1.1" 200 413
+INFO 2026-05-05 17:31:02,773 basehttp 18064 19008 "GET /api/chat/sessions/1/ HTTP/1.1" 200 1965
+INFO 2026-05-05 17:31:02,813 basehttp 18064 15684 "GET /api/documents/?project=3 HTTP/1.1" 200 52
+INFO 2026-05-05 17:31:02,824 basehttp 18064 17724 "GET /api/chat/sessions/?project_id=3 HTTP/1.1" 200 413
+INFO 2026-05-05 17:31:02,841 basehttp 18064 19008 "GET /api/chat/sessions/1/ HTTP/1.1" 200 1965
+INFO 2026-05-05 17:31:11,087 basehttp 18064 19008 "OPTIONS /api/projects/statistics/ HTTP/1.1" 200 0
+INFO 2026-05-05 17:31:11,087 basehttp 18064 17724 "OPTIONS /api/projects/statistics/ HTTP/1.1" 200 0
+INFO 2026-05-05 17:31:11,147 basehttp 18064 17724 "GET /api/projects/statistics/ HTTP/1.1" 200 370
+INFO 2026-05-05 17:31:11,200 basehttp 18064 17724 "GET /api/projects/statistics/ HTTP/1.1" 200 370
+INFO 2026-05-05 17:31:31,709 basehttp 18064 17724 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:31:31,766 basehttp 18064 17724 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:31:33,754 basehttp 18064 17724 "GET /api/projects/statistics/ HTTP/1.1" 200 370
+INFO 2026-05-05 17:31:33,807 basehttp 18064 17724 "GET /api/projects/statistics/ HTTP/1.1" 200 370
+INFO 2026-05-05 17:31:34,485 basehttp 18064 17724 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:31:34,535 basehttp 18064 17724 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:31:35,078 basehttp 18064 17724 "GET /api/projects/statistics/ HTTP/1.1" 200 370
+INFO 2026-05-05 17:31:35,129 basehttp 18064 17724 "GET /api/projects/statistics/ HTTP/1.1" 200 370
+INFO 2026-05-05 17:31:35,799 basehttp 18064 17724 "GET /api/documents/?project=3 HTTP/1.1" 200 52
+INFO 2026-05-05 17:31:35,817 basehttp 18064 19008 "GET /api/chat/sessions/?project_id=3 HTTP/1.1" 200 413
+INFO 2026-05-05 17:31:35,827 basehttp 18064 15684 "GET /api/chat/sessions/1/ HTTP/1.1" 200 1965
+INFO 2026-05-05 17:31:35,863 basehttp 18064 17724 "GET /api/documents/?project=3 HTTP/1.1" 200 52
+INFO 2026-05-05 17:31:35,867 basehttp 18064 19008 "GET /api/chat/sessions/?project_id=3 HTTP/1.1" 200 413
+INFO 2026-05-05 17:31:35,896 basehttp 18064 15684 "GET /api/chat/sessions/1/ HTTP/1.1" 200 1965
+INFO 2026-05-05 17:31:39,201 basehttp 18064 15684 "PATCH /api/chat/sessions/1/ HTTP/1.1" 200 361
+INFO 2026-05-05 17:31:40,146 basehttp 18064 15684 "PATCH /api/chat/sessions/1/ HTTP/1.1" 200 361
+INFO 2026-05-05 17:31:40,290 basehttp 18064 15684 "PATCH /api/chat/sessions/1/ HTTP/1.1" 200 361
+INFO 2026-05-05 17:31:40,967 basehttp 18064 15684 "PATCH /api/chat/sessions/1/ HTTP/1.1" 200 361
+INFO 2026-05-05 17:31:41,788 basehttp 18064 15684 "GET /api/auth/me HTTP/1.1" 200 359
+INFO 2026-05-05 17:31:41,810 basehttp 18064 19008 "GET /api/projects/ HTTP/1.1" 200 802
+INFO 2026-05-05 17:31:41,838 basehttp 18064 15684 "GET /api/auth/me HTTP/1.1" 200 359
+INFO 2026-05-05 17:31:41,873 basehttp 18064 19008 "GET /api/projects/ HTTP/1.1" 200 802
+INFO 2026-05-05 17:31:42,030 basehttp 18064 19008 "GET /api/documents/?project=3 HTTP/1.1" 200 52
+INFO 2026-05-05 17:31:42,037 basehttp 18064 15684 "GET /api/chat/sessions/?project_id=3 HTTP/1.1" 200 413
+INFO 2026-05-05 17:31:42,080 basehttp 18064 19008 "GET /api/documents/?project=3 HTTP/1.1" 200 52
+INFO 2026-05-05 17:31:42,091 basehttp 18064 15684 "GET /api/chat/sessions/?project_id=3 HTTP/1.1" 200 413
+INFO 2026-05-05 17:31:42,159 basehttp 18064 15684 "GET /api/chat/sessions/1/ HTTP/1.1" 200 1965
+INFO 2026-05-05 17:31:43,422 basehttp 18064 15684 "GET /api/documents/?project=2 HTTP/1.1" 200 52
+INFO 2026-05-05 17:31:43,431 basehttp 18064 19008 "GET /api/chat/sessions/?project_id=2 HTTP/1.1" 200 413
+INFO 2026-05-05 17:31:45,168 basehttp 18064 19008 "PATCH /api/chat/sessions/1/ HTTP/1.1" 200 361
+INFO 2026-05-05 17:31:47,060 basehttp 18064 19008 "OPTIONS /api/documents/?project=1 HTTP/1.1" 200 0
+INFO 2026-05-05 17:31:47,060 basehttp 18064 15684 "OPTIONS /api/chat/sessions/?project_id=1 HTTP/1.1" 200 0
+INFO 2026-05-05 17:31:47,125 basehttp 18064 15684 "GET /api/documents/?project=1 HTTP/1.1" 200 669
+INFO 2026-05-05 17:31:47,128 basehttp 18064 19008 "GET /api/chat/sessions/?project_id=1 HTTP/1.1" 200 413
+INFO 2026-05-05 17:31:49,131 basehttp 18064 19008 "PATCH /api/chat/sessions/1/ HTTP/1.1" 200 361
+INFO 2026-05-05 17:31:55,745 basehttp 18064 19008 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:31:55,795 basehttp 18064 19008 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:09,225 basehttp 18064 19008 "GET /api/documents/?project=1 HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:09,225 basehttp 18064 15684 "GET /api/chat/sessions/?project_id=1 HTTP/1.1" 200 413
+INFO 2026-05-05 17:32:09,237 basehttp 18064 17724 "GET /api/chat/sessions/1/ HTTP/1.1" 200 1965
+INFO 2026-05-05 17:32:09,289 basehttp 18064 19008 "GET /api/documents/?project=1 HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:09,295 basehttp 18064 15684 "GET /api/chat/sessions/?project_id=1 HTTP/1.1" 200 413
+INFO 2026-05-05 17:32:09,307 basehttp 18064 17724 "GET /api/chat/sessions/1/ HTTP/1.1" 200 1965
+INFO 2026-05-05 17:32:10,372 basehttp 18064 17724 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:10,433 basehttp 18064 17724 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:11,112 basehttp 18064 17724 "GET /api/documents/?project=1 HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:11,112 basehttp 18064 15684 "GET /api/chat/sessions/?project_id=1 HTTP/1.1" 200 413
+INFO 2026-05-05 17:32:11,128 basehttp 18064 19008 "GET /api/chat/sessions/1/ HTTP/1.1" 200 1965
+INFO 2026-05-05 17:32:11,165 basehttp 18064 17724 "GET /api/documents/?project=1 HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:11,187 basehttp 18064 19008 "GET /api/chat/sessions/1/ HTTP/1.1" 200 1965
+INFO 2026-05-05 17:32:11,273 basehttp 18064 15684 "GET /api/chat/sessions/?project_id=1 HTTP/1.1" 200 413
+INFO 2026-05-05 17:32:11,860 basehttp 18064 15684 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:11,919 basehttp 18064 15684 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:12,325 basehttp 18064 15684 "GET /api/projects/statistics/ HTTP/1.1" 200 370
+INFO 2026-05-05 17:32:12,377 basehttp 18064 15684 "GET /api/projects/statistics/ HTTP/1.1" 200 370
+INFO 2026-05-05 17:32:12,778 basehttp 18064 15684 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:12,828 basehttp 18064 15684 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:13,111 basehttp 18064 15684 "GET /api/projects/statistics/ HTTP/1.1" 200 370
+INFO 2026-05-05 17:32:13,166 basehttp 18064 15684 "GET /api/projects/statistics/ HTTP/1.1" 200 370
+INFO 2026-05-05 17:32:13,631 basehttp 18064 15684 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:13,678 basehttp 18064 15684 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:14,218 basehttp 18064 15684 "GET /api/projects/statistics/ HTTP/1.1" 200 370
+INFO 2026-05-05 17:32:14,265 basehttp 18064 15684 "GET /api/projects/statistics/ HTTP/1.1" 200 370
+INFO 2026-05-05 17:32:15,412 basehttp 18064 15684 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:15,461 basehttp 18064 15684 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:15,974 basehttp 18064 15684 "GET /api/documents/?project=1 HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:15,974 basehttp 18064 19008 "GET /api/chat/sessions/?project_id=1 HTTP/1.1" 200 413
+INFO 2026-05-05 17:32:15,984 basehttp 18064 17724 "GET /api/chat/sessions/1/ HTTP/1.1" 200 1965
+INFO 2026-05-05 17:32:16,029 basehttp 18064 15684 "GET /api/documents/?project=1 HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:16,044 basehttp 18064 17724 "GET /api/chat/sessions/1/ HTTP/1.1" 200 1965
+INFO 2026-05-05 17:32:16,135 basehttp 18064 19008 "GET /api/chat/sessions/?project_id=1 HTTP/1.1" 200 413
+INFO 2026-05-05 17:32:17,729 basehttp 18064 19008 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:17,788 basehttp 18064 19008 "GET /api/documents/ HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:22,169 basehttp 18064 19008 "GET /api/documents/?project=1 HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:22,174 basehttp 18064 17724 "GET /api/chat/sessions/?project_id=1 HTTP/1.1" 200 413
+INFO 2026-05-05 17:32:22,182 basehttp 18064 15684 "GET /api/chat/sessions/1/ HTTP/1.1" 200 1965
+INFO 2026-05-05 17:32:22,232 basehttp 18064 19008 "GET /api/documents/?project=1 HTTP/1.1" 200 669
+INFO 2026-05-05 17:32:22,248 basehttp 18064 15684 "GET /api/chat/sessions/1/ HTTP/1.1" 200 1965
+INFO 2026-05-05 17:32:22,341 basehttp 18064 17724 "GET /api/chat/sessions/?project_id=1 HTTP/1.1" 200 413
+INFO 2026-05-05 17:32:43,369 services 18064 17724 [populate_document_extracted_text] Starting for doc_id=2
+INFO 2026-05-05 17:32:43,369 services 18064 17724 [populate_document_extracted_text] File exists: D:\QLDA-RAG\RAG_BE_QLDA01\media\documents\2026\05\293.pdf
+INFO 2026-05-05 17:32:43,373 services 18064 17724 [populate_document_extracted_text] File type: pdf
+INFO 2026-05-05 17:32:43,373 services 18064 17724 [populate_document_extracted_text] Extracted text len=0
+INFO 2026-05-05 17:32:43,374 services 18064 17724 [populate_document_extracted_text] Saved extracted_text, len=0
+INFO 2026-05-05 17:32:43,374 services 18064 17724 [index_document_to_chroma] Starting for doc_id=2, project_id=1
+INFO 2026-05-05 17:32:43,374 services 18064 17724 [index_document_to_chroma] Initial text len=0
+INFO 2026-05-05 17:32:43,374 services 18064 17724 [index_document_to_chroma] Text empty, re-extracting
+INFO 2026-05-05 17:32:43,374 services 18064 17724 [populate_document_extracted_text] Starting for doc_id=2
+INFO 2026-05-05 17:32:43,374 services 18064 17724 [populate_document_extracted_text] File exists: D:\QLDA-RAG\RAG_BE_QLDA01\media\documents\2026\05\293.pdf
+INFO 2026-05-05 17:32:43,374 services 18064 17724 [populate_document_extracted_text] File type: pdf
+INFO 2026-05-05 17:32:43,374 services 18064 17724 [populate_document_extracted_text] Extracted text len=0
+INFO 2026-05-05 17:32:43,374 services 18064 17724 [populate_document_extracted_text] Saved extracted_text, len=0
+INFO 2026-05-05 17:32:43,380 services 18064 17724 [index_document_to_chroma] After re-extract, text len=0
+WARNING 2026-05-05 17:32:43,380 services 18064 17724 [index_document_to_chroma] Still no text after extract
+INFO 2026-05-05 17:32:43,387 basehttp 18064 17724 "POST /api/documents/ HTTP/1.1" 201 665
+INFO 2026-05-05 17:32:43,459 basehttp 18064 15684 "GET /api/chat/sessions/?project_id=1 HTTP/1.1" 200 413
+INFO 2026-05-05 17:32:43,465 basehttp 18064 17724 "GET /api/documents/?project=1 HTTP/1.1" 200 1351
+INFO 2026-05-05 17:32:47,459 basehttp 18064 17724 "PATCH /api/chat/sessions/1/ HTTP/1.1" 200 362
+INFO 2026-05-05 17:32:51,209 basehttp 18064 17724 "GET /api/documents/ HTTP/1.1" 200 1351
+INFO 2026-05-05 17:32:51,268 basehttp 18064 17724 "GET /api/documents/ HTTP/1.1" 200 1351
+INFO 2026-05-05 17:35:05,533 basehttp 18064 17724 "GET /api/projects/statistics/ HTTP/1.1" 200 564
+INFO 2026-05-05 17:35:05,589 basehttp 18064 17724 "GET /api/projects/statistics/ HTTP/1.1" 200 564
+INFO 2026-05-05 17:40:22,511 autoreload 17876 9480 Watching for file changes with StatReloader
+INFO 2026-05-05 17:40:38,283 basehttp 17876 10888 "GET /api/auth/me HTTP/1.1" 200 359
+INFO 2026-05-05 17:40:38,295 basehttp 17876 7628 "GET /api/projects/ HTTP/1.1" 200 802
+INFO 2026-05-05 17:40:38,335 basehttp 17876 10888 "GET /api/auth/me HTTP/1.1" 200 359
+INFO 2026-05-05 17:40:38,364 basehttp 17876 7628 "GET /api/projects/ HTTP/1.1" 200 802
+INFO 2026-05-05 17:40:38,400 basehttp 17876 10888 "GET /api/projects/statistics/ HTTP/1.1" 200 564
+INFO 2026-05-05 17:40:38,451 basehttp 17876 10888 "GET /api/projects/statistics/ HTTP/1.1" 200 564

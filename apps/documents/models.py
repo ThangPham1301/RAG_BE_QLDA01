@@ -21,6 +21,13 @@ class Document(models.Model):
 
 	project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='documents')
 	uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='uploaded_documents')
+	uploaded_chat_session = models.ForeignKey(
+		'chatbot.ChatSession',
+		on_delete=models.SET_NULL,
+		null=True,
+		blank=True,
+		related_name='uploaded_documents',
+	)
 	
 	title = models.CharField(max_length=255)
 	file = models.FileField(upload_to='documents/%Y/%m/')

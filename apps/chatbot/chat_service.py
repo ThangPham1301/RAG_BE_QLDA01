@@ -4,6 +4,7 @@ import os
 import re
 from typing import Dict, Optional
 
+import requests
 from django.utils import timezone
 
 from .models import ChatSession, ChatMessage, MessageContext
@@ -144,7 +145,10 @@ class ChatService:
 		except Exception as exc:
 			logger.error(f'[ChatService] RAG failed: {exc}', exc_info=True)
 			# Lưu error message vẫn có để user thấy
-			answer_text = f'Có lỗi xảy ra khi xử lý câu hỏi: {str(exc)[:100]}'
+			if isinstance(exc, requests.exceptions.ReadTimeout) or 'Read timed out' in str(exc):
+				answer_text = 'Hệ thống đang xử lý lâu hơn dự kiến. Vui lòng thử lại hoặc rút gọn câu hỏi.'
+			else:
+				answer_text = f'Có lỗi xảy ra khi xử lý câu hỏi: {str(exc)[:100]}'
 			retrieved_chunks = []
 		
 		# [4] Persist retrieval contexts at message level for traceability.

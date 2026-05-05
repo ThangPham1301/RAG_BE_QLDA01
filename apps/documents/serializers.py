@@ -7,6 +7,7 @@ from .models import Document
 class DocumentSerializer(serializers.ModelSerializer):
 	project_name = serializers.CharField(source='project.name', read_only=True)
 	uploaded_by_email = serializers.CharField(source='uploaded_by.email', read_only=True)
+	uploaded_chat_session_title = serializers.CharField(source='uploaded_chat_session.title', read_only=True)
 	file_url = serializers.SerializerMethodField()
 
 	class Meta:
@@ -15,11 +16,12 @@ class DocumentSerializer(serializers.ModelSerializer):
 			'id', 'project', 'project_name', 'title', 'file', 'file_url',
 			'file_type', 'extracted_text', 'summary', 'index_status',
 			'indexed_chunks', 'index_error', 'indexed_at', 'uploaded_by',
+			'uploaded_chat_session', 'uploaded_chat_session_title',
 			'uploaded_by_email', 'is_deleted', 'deleted_at', 'uploaded_at', 'updated_at'
 		]
 		read_only_fields = [
 			'id', 'project_name', 'file_url', 'index_status', 'indexed_chunks',
-			'index_error', 'indexed_at', 'uploaded_by', 'uploaded_by_email',
+			'index_error', 'indexed_at', 'uploaded_by', 'uploaded_chat_session', 'uploaded_chat_session_title', 'uploaded_by_email',
 			'is_deleted', 'deleted_at', 'uploaded_at', 'updated_at'
 		]
 
@@ -35,10 +37,11 @@ class DocumentSerializer(serializers.ModelSerializer):
 
 class DocumentUploadSerializer(serializers.ModelSerializer):
 	title = serializers.CharField(required=False, allow_blank=True)
+	uploaded_chat_session = serializers.IntegerField(required=False, allow_null=True)
 
 	class Meta:
 		model = Document
-		fields = ['project', 'title', 'file']
+		fields = ['project', 'title', 'file', 'uploaded_chat_session']
 
 	def validate_file(self, value):
 		extension = os.path.splitext(value.name)[1].lower()
@@ -51,6 +54,21 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
 		file_obj = attrs.get('file')
 		if not file_obj:
 			raise serializers.ValidationError({'file': 'File là bắt buộc.'})
+
+		chat_session_id = attrs.get('uploaded_chat_session')
+		if chat_session_id is not None:
+			from apps.chatbot.models import ChatSession
+			request = self.context['request']
+			project = attrs.get('project')
+			chat_session = ChatSession.objects.filter(
+				id=chat_session_id,
+				user=request.user,
+				project=project,
+				is_deleted=False,
+			).first()
+			if not chat_session:
+				raise serializers.ValidationError({'uploaded_chat_session': 'Chat session không hợp lệ cho project hiện tại.'})
+			attrs['uploaded_chat_session'] = chat_session
 		return attrs
 
 	def create(self, validated_data):

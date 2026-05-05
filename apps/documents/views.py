@@ -37,6 +37,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         """Handle document upload (single or multiple)"""
         files = request.FILES.getlist('files')
         project_id = request.data.get('project')
+        chat_session_id = request.data.get('chat_session')
         
         if not project_id:
             return Response(
@@ -55,7 +56,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 data = {
                     'project': project_id,
                     'title': request.data.get('title', ''),
-                    'file': file_obj
+                    'file': file_obj,
+                    'uploaded_chat_session': chat_session_id or None,
                 }
                 serializer = DocumentUploadSerializer(data=data, context={'request': request})
                 if serializer.is_valid():
