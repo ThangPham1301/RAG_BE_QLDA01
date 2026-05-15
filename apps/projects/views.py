@@ -46,15 +46,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
         from apps.chatbot.models import ChatSession
 
         documents_qs = Document.objects.filter(
-<<<<<<< HEAD
-            project__in=projects_qs,
-            is_deleted=False,
-        ).select_related('project', 'uploaded_chat_session')
-=======
             chat_session__project__in=projects_qs,
             is_deleted=False,
         ).select_related('chat_session', 'chat_session__project')
->>>>>>> 5f5f0ac (fix chat structure)
 
         counts = documents_qs.aggregate(
             total_documents=Count('id'),
@@ -76,17 +70,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
             recent_uploads.append({
                 'document_id': doc.id,
                 'title': doc.title,
-<<<<<<< HEAD
-                'project_id': doc.project_id,
-                'project_name': doc.project.name,
-                'chat_session_id': doc.uploaded_chat_session_id,
-                'chat_session_title': doc.uploaded_chat_session.title if doc.uploaded_chat_session else None,
-=======
                 'project_id': doc.chat_session.project_id,
                 'project_name': doc.chat_session.project.name,
                 'chat_session_id': doc.chat_session_id,
-                'chat_session_title': doc.chat_session.title,
->>>>>>> 5f5f0ac (fix chat structure)
+                'chat_session_title': doc.chat_session.title if doc.chat_session else None,
                 'index_status': doc.index_status,
                 'uploaded_at': doc.uploaded_at.isoformat(),
             })

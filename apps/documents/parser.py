@@ -6,12 +6,15 @@ from typing import List
 
 logger = logging.getLogger(__name__)
 
-try:
-    import fitz  # pymupdf
-    logger.info('PyMuPDF (fitz) successfully imported')
-except Exception as e:  # pragma: no cover
-    logger.warning(f'PyMuPDF (fitz) import failed: {e}')
-    fitz = None
+
+def _get_fitz():
+    """Import PyMuPDF lazily so a running server can pick up newly installed packages."""
+    try:
+        import fitz  # pymupdf
+        return fitz
+    except Exception as exc:  # pragma: no cover
+        logger.warning(f'PyMuPDF (fitz) import failed: {exc}')
+        return None
 
 
 def extract_text_from_pdf(path: str) -> str:
@@ -20,6 +23,7 @@ def extract_text_from_pdf(path: str) -> str:
     If PyMuPDF is not available, returns empty string.
     """
     logger.debug(f'[extract_text_from_pdf] Starting for {path}')
+    fitz = _get_fitz()
     if fitz is None:
         logger.error('[extract_text_from_pdf] PyMuPDF not available')
         return ''
@@ -34,7 +38,7 @@ def extract_text_from_pdf(path: str) -> str:
     parts: List[str] = []
     for idx, page in enumerate(doc):
         try:
-            text = page.get_text()
+            text = page.get_text("text") or page.get_text()
             if text:
                 parts.append(text)
                 logger.debug(f'[extract_text_from_pdf] Page {idx}: {len(text)} chars')
@@ -64,3 +68,35 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> List[st
             break
         start = max(start + 1, end - overlap)  # Ensure forward progress
     return chunks
+
+
+def extract_text_from_docx(path: str) -> str:
+    """Extract text from a DOCX including paragraphs and tables."""
+    try:
+        from docx import Document as DocxDocument
+    except Exception as exc:
+        logger.error(f'[extract_text_from_docx] python-docx not available: {exc}')
+        return ''
+
+    try:
+        doc = DocxDocument(path)
+    except Exception as exc:
+        logger.error(f'[extract_text_from_docx] Failed to open DOCX: {exc}', exc_info=True)
+        return ''
+
+    parts: List[str] = []
+
+    for paragraph in doc.paragraphs:
+        text = (paragraph.text or '').strip()
+        if text:
+            parts.append(text)
+
+    for table in doc.tables:
+        for row in table.rows:
+            row_text = [cell.text.strip() for cell in row.cells if cell.text and cell.text.strip()]
+            if row_text:
+                parts.append(' | '.join(row_text))
+
+    result = '\n'.join(parts)
+    logger.debug(f'[extract_text_from_docx] Total extracted: {len(result)} chars')
+    return result

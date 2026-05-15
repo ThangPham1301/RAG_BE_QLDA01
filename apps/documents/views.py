@@ -15,7 +15,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
     serializer_class = DocumentSerializer
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
-    filterset_fields = ['chat_session', 'file_type', 'index_status']
+    filterset_fields = ['chat_session_id', 'file_type', 'index_status']
 
     def get_queryset(self):
         user = self.request.user
@@ -38,16 +38,9 @@ class DocumentViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """Handle document upload (single or multiple)"""
         files = request.FILES.getlist('files')
-<<<<<<< HEAD
-        project_id = request.data.get('project')
-        chat_session_id = request.data.get('chat_session')
-        
-        if not project_id:
-=======
-        chat_session_id = request.data.get('chat_session_id') or request.data.get('chat_session')
+        chat_session_id = request.data.get('chat_session_id')
 
         if not chat_session_id:
->>>>>>> 5f5f0ac (fix chat structure)
             return Response(
                 {'error': 'chat_session_id is required'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -62,13 +55,9 @@ class DocumentViewSet(viewsets.ModelViewSet):
         for file_obj in file_list:
             try:
                 data = {
-                    'chat_session': chat_session_id,
+                    'chat_session_id': chat_session_id,
                     'title': request.data.get('title', ''),
                     'file': file_obj,
-<<<<<<< HEAD
-                    'uploaded_chat_session': chat_session_id or None,
-=======
->>>>>>> 5f5f0ac (fix chat structure)
                 }
                 serializer = DocumentUploadSerializer(data=data, context={'request': request})
                 if serializer.is_valid():

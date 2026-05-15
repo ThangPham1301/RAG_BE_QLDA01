@@ -20,10 +20,16 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return ChatSession.objects.filter(
+        queryset = ChatSession.objects.filter(
             user=self.request.user,
             is_deleted=False
         ).order_by('-updated_at')
+
+        project_id = self.request.query_params.get('project_id')
+        if project_id:
+            queryset = queryset.filter(project_id=project_id)
+
+        return queryset
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -33,9 +39,12 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """Create new chat session"""
         data = request.data.copy()
-        project_id = data.get('project_id') or data.get('project')
+        project_id = data.get('project_id')
         if not project_id:
             return Response({'error': 'project_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        from apps.projects.models import Project
+        if not Project.objects.filter(id=project_id, owner=request.user).exists():
+            return Response({'error': 'project is not available'}, status=status.HTTP_400_BAD_REQUEST)
         data['project'] = project_id
         data['user'] = request.user.id
         serializer = self.get_serializer(data=data)
@@ -140,7 +149,11 @@ class ChatMessageViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         session_id = self.request.query_params.get('session_id')
         if session_id:
-            return ChatMessage.objects.filter(chat_session_id=session_id).order_by('created_at')
+            return ChatMessage.objects.filter(
+                chat_session_id=session_id,
+                chat_session__user=self.request.user,
+                chat_session__is_deleted=False,
+            ).order_by('created_at')
         return ChatMessage.objects.none()
 
 

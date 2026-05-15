@@ -57,7 +57,7 @@ class ChatService:
 		)
 		return self.rag.llm.generate(prompt, max_tokens=120, temperature=0.4)
 	
-	def create_session(self, project_id: int, title: Optional[str] = None) -> ChatSession:
+	def create_session(self, project_id: int, title: Optional[str] = None, user=None) -> ChatSession:
 		"""Tạo session chat mới.
 		
 		Args:
@@ -69,8 +69,12 @@ class ChatService:
 		"""
 		logger.info(f'[ChatService] Creating session for project_id={project_id}')
 		
+		if not user:
+			raise ValueError('User is required to create a chat session')
+
 		session = ChatSession.objects.create(
 			project_id=project_id,
+			user=user,
 			title=title or 'Chat mới'
 		)
 		

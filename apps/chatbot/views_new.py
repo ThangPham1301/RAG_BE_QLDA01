@@ -64,7 +64,7 @@ class ChatSessionViewSet(viewsets.ViewSet):
 		
 		try:
 			chat_service = ChatService()
-			session = chat_service.create_session(project_id, title)
+			session = chat_service.create_session(project_id, title=title, user=request.user)
 			
 			serializer = ChatSessionSerializer(session)
 			return Response(serializer.data, status=status.HTTP_201_CREATED)

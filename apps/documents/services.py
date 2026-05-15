@@ -8,23 +8,9 @@ from django.utils import timezone as django_timezone
 from apps.chatbot.chroma_service import ChromaService
 
 from .models import Document
-from .parser import chunk_text, extract_text_from_pdf
+from .parser import chunk_text, extract_text_from_docx, extract_text_from_pdf
 
 logger = logging.getLogger(__name__)
-
-
-def _extract_text_from_docx(path: str) -> str:
-	try:
-		from docx import Document as DocxDocument
-	except Exception:
-		return ''
-
-	doc = DocxDocument(path)
-	parts = []
-	for p in doc.paragraphs:
-		if p.text:
-			parts.append(p.text)
-	return '\n'.join(parts)
 
 
 def _extract_text_from_txt(path: str) -> str:
@@ -68,7 +54,7 @@ def populate_document_extracted_text(document: Document) -> int:
 			logger.info(f'[populate_document_extracted_text] PDF extraction result: {len(text or "")} chars')
 		elif file_type == Document.FileType.DOCX or file_type == 'docx':
 			logger.info(f'[populate_document_extracted_text] Extracting as DOCX')
-			text = _extract_text_from_docx(str(abs_path))
+			text = extract_text_from_docx(str(abs_path))
 			logger.info(f'[populate_document_extracted_text] DOCX extraction result: {len(text or "")} chars')
 		elif file_type == Document.FileType.TXT or file_type == 'txt':
 			logger.info(f'[populate_document_extracted_text] Extracting as TXT')
@@ -139,7 +125,6 @@ def index_document_to_chroma(document: Document, chunk_size: int = 1000, overlap
 						'chat_session_id': document.chat_session_id,
 						'document_id': document.id,
 						'file_name': file_name,
-						'page': None,
 						'chunk_index': index,
 					},
 				}
