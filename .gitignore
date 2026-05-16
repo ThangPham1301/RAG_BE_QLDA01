@@ -1,8 +1,11 @@
 # Python cache full
 __pycache__/
 *.py[cod]
+*.pyc
 *$py.class
 
+
+.env
 # Virtual env (đã đúng)
 .venv/
 venv/
