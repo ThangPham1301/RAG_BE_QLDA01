@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 from pathlib import Path
 from datetime import timedelta
 from decouple import config
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -360,6 +361,14 @@ SUMMARY_MAX_LENGTH = config('SUMMARY_MAX_LENGTH', default=1000, cast=int)
 SUMMARY_PROMPT = config('SUMMARY_PROMPT', default='Tóm tắt nội dung sau đây một cách ngắn gọn và chính xác')
 
 # Logging
+# Ensure logs directory exists so FileHandler can create the log file
+LOGS_DIR = BASE_DIR / 'logs'
+try:
+    os.makedirs(str(LOGS_DIR), exist_ok=True)
+except Exception:
+    # Ignore errors here; if creation fails FileHandler will raise a clear error
+    pass
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
