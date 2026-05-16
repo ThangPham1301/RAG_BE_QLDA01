@@ -102,11 +102,11 @@ class ProjectViewSet(viewsets.ModelViewSet):
             current = current.replace(year=current.year + 1)
         return keys
 
-    def _series_map(self, queryset, trunc_fn):
+    def _series_map(self, queryset, trunc_fn, date_field='created_at'):
         series = {}
         for row in (
             queryset
-            .annotate(period=trunc_fn('created_at'))
+            .annotate(period=trunc_fn(date_field))
             .values('period')
             .annotate(total=Count('id'))
             .order_by('period')
@@ -117,12 +117,13 @@ class ProjectViewSet(viewsets.ModelViewSet):
             series[period_value] = row['total']
         return series
 
-    def _build_library_tree(self, projects_qs, request):
+    def _build_library_tree(self, projects_qs, request, use_system_scope=True):
         from apps.chatbot.models import ChatSession
         from apps.documents.models import Document
 
         chat_qs = ChatSession.objects.filter(is_deleted=False).order_by('-updated_at')
-        if not request.user.is_staff:
+        if not use_system_scope:
+            # In 'mine' scope, only show the requesting user's chat sessions
             chat_qs = chat_qs.filter(user=request.user)
 
         doc_qs = Document.objects.filter(is_deleted=False).order_by('-uploaded_at')
@@ -138,6 +139,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
             for chat in project.chat_sessions.all():
                 documents = []
                 for doc in chat.documents.all():
+                    doc_file_url = ''
+                    if doc.file:
+                        try:
+                            doc_file_url = request.build_absolute_uri(doc.file.url)
+                        except Exception:
+                            pass
                     documents.append({
                         'document_id': doc.id,
                         'title': doc.title,
@@ -145,6 +152,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
                         'index_status': doc.index_status,
                         'indexed_chunks': doc.indexed_chunks,
                         'uploaded_at': doc.uploaded_at.isoformat(),
+                        'file_url': doc_file_url,
+                        'extracted_text_preview': (doc.extracted_text or '')[:8000],
                     })
 
                 documents_count = len(documents)
@@ -175,9 +184,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
         if error_response:
             return None, error_response
 
-        scope = request.query_params.get('scope', 'mine').lower()
-        allow_system_scope = request.user.is_staff
-        use_system_scope = scope == 'system' and allow_system_scope
+        # Dashboard statistics always uses system-wide scope.
+        # (Authorization/role-based filtering can be added later when needed.)
+        scope = request.query_params.get('scope', 'system').lower()
+        use_system_scope = scope != 'mine'
 
         if use_system_scope:
             projects_qs = Project.objects.all()
@@ -186,6 +196,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
             chats_qs = ChatSession.objects.filter(is_deleted=False)
             documents_qs = Document.objects.filter(is_deleted=False).select_related('chat_session', 'chat_session__project')
         else:
+            # 'mine' scope: only data belonging to the requesting user
             projects_qs = self.get_queryset()
             users_qs = User.objects.filter(id=request.user.id)
             visits_qs = AuthSession.objects.filter(user=request.user)
@@ -213,9 +224,15 @@ class ProjectViewSet(viewsets.ModelViewSet):
             created_at__lte=time_window['end_at'],
         )
 
+        filtered_uploads_qs = documents_qs.filter(
+            uploaded_at__gte=time_window['start_at'],
+            uploaded_at__lte=time_window['end_at'],
+        )
+
         users_series = self._series_map(filtered_users_qs, time_window['trunc_fn'])
         visits_series = self._series_map(filtered_visits_qs, time_window['trunc_fn'])
         queries_series = self._series_map(filtered_queries_qs, time_window['trunc_fn'])
+        uploads_series = self._series_map(filtered_uploads_qs, time_window['trunc_fn'], date_field='uploaded_at')
 
         periods = self._period_keys(time_window['start_at'], time_window['end_at'], time_window['group_by'])
         chart_rows = []
@@ -225,6 +242,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 'users': users_series.get(period_key, 0),
                 'visits': visits_series.get(period_key, 0),
                 'queries': queries_series.get(period_key, 0),
+                'uploads': uploads_series.get(period_key, 0),
             })
 
         counts = documents_qs.aggregate(
@@ -269,12 +287,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 'active_chat_sessions': chats_qs.filter(is_archived=False).count(),
             },
             'charts': {
-                'columns': ['period', 'users', 'visits', 'queries'],
+                'columns': ['period', 'users', 'visits', 'queries', 'uploads'],
                 'bar': chart_rows,
                 'line': chart_rows,
             },
             'library': {
-                'projects': self._build_library_tree(projects_qs, request),
+                'projects': self._build_library_tree(projects_qs, request, use_system_scope=use_system_scope),
             },
             'recent_uploads': recent_uploads,
             # Legacy fields kept for backward compatibility with older clients.

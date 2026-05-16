@@ -4,6 +4,8 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from django.utils import timezone
 from .models import Document
 from .serializers import DocumentSerializer, DocumentUploadSerializer
@@ -145,3 +147,77 @@ class DocumentViewSet(viewsets.ModelViewSet):
         doc.deleted_at = timezone.now()
         doc.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['get'], url_path='preview', permission_classes=[permissions.AllowAny])
+    def preview(self, request, pk=None):
+        """Serve the raw file for inline preview (PDF, DOCX, TXT).
+        Supports JWT via ?token= query param so iframes can load the file."""
+        import mimetypes
+        from django.http import FileResponse, Http404
+        from django.contrib.auth import get_user_model
+        import os
+
+        # --- Auth: try Authorization header first, then ?token= query param ---
+        user = request.user
+        if not user or not user.is_authenticated:
+            token_str = request.query_params.get('token', '')
+            if token_str:
+                try:
+                    jwt_auth = JWTAuthentication()
+                    validated = jwt_auth.get_validated_token(token_str.encode())
+                    user = jwt_auth.get_user(validated)
+                except (InvalidToken, TokenError, Exception):
+                    from django.http import HttpResponseForbidden
+                    return HttpResponseForbidden('Invalid or expired token.')
+            else:
+                from django.http import HttpResponseForbidden
+                return HttpResponseForbidden('Authentication required.')
+
+        # --- Fetch document (scoped to user unless admin) ---
+        try:
+            if user.is_staff:
+                doc = Document.objects.get(pk=pk, is_deleted=False)
+            else:
+                doc = Document.objects.get(pk=pk, is_deleted=False, chat_session__user=user)
+        except Document.DoesNotExist:
+            raise Http404('Document not found.')
+
+        if not doc.file:
+            raise Http404('No file attached to this document.')
+
+        try:
+            file_path = doc.file.path
+        except Exception:
+            raise Http404('File path unavailable.')
+
+        if not os.path.exists(file_path):
+            raise Http404('File not found on disk.')
+
+        mime_type, _ = mimetypes.guess_type(file_path)
+        if not mime_type:
+            mime_type = 'application/octet-stream'
+
+        file_handle = open(file_path, 'rb')
+        response = FileResponse(file_handle, content_type=mime_type)
+        response['Content-Disposition'] = f'inline; filename="{os.path.basename(file_path)}"'
+        response['X-Frame-Options'] = 'ALLOWALL'
+        response['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
+        response['Access-Control-Allow-Credentials'] = 'true'
+        return response
+
+    @action(detail=True, methods=['get'], url_path='text')
+    def get_text(self, request, pk=None):
+        """Return the full extracted text of a document for preview.
+        Bypasses per-user queryset filter so system-wide Library can access any doc."""
+        try:
+            doc = Document.objects.get(pk=pk, is_deleted=False)
+        except Document.DoesNotExist:
+            return Response({'detail': 'Document not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({
+            'document_id': doc.id,
+            'title': doc.title,
+            'file_type': doc.file_type,
+            'extracted_text': doc.extracted_text or '',
+            'index_status': doc.index_status,
+            'indexed_chunks': doc.indexed_chunks,
+        })
