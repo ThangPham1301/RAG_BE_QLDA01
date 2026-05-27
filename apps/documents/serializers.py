@@ -14,13 +14,14 @@ class DocumentSerializer(serializers.ModelSerializer):
 		model = Document
 		fields = [
 			'id', 'chat_session', 'chat_session_title', 'project_id', 'project_name', 'title', 'file', 'file_url',
-			'file_type', 'extracted_text', 'summary', 'index_status',
+			'file_type', 'extracted_text', 'summary', 'ocr_layout', 'extracted_fields', 'index_status',
 			'indexed_chunks', 'index_error', 'indexed_at', 'uploaded_by',
 			'uploaded_by_email', 'is_deleted', 'deleted_at', 'uploaded_at', 'updated_at'
 		]
 		read_only_fields = [
 			'id', 'project_name', 'file_url', 'index_status', 'chat_session_title',
-			'index_error', 'indexed_at', 'uploaded_by', 'is_deleted', 'deleted_at', 'uploaded_at'
+			'ocr_layout', 'extracted_fields', 'index_error', 'indexed_at', 'uploaded_by',
+			'is_deleted', 'deleted_at', 'uploaded_at'
 		]
 
 	def get_file_url(self, obj):
@@ -43,7 +44,7 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
 
 	def validate_file(self, value):
 		extension = os.path.splitext(value.name)[1].lower()
-		allowed_extensions = {'.pdf', '.docx', '.txt'}
+		allowed_extensions = {'.pdf', '.docx', '.txt', '.jpg', '.jpeg', '.png'}
 		if extension not in allowed_extensions:
 			raise serializers.ValidationError('Chỉ hỗ trợ file PDF, DOCX hoặc TXT.')
 		return value
@@ -77,6 +78,8 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
 			validated_data['file_type'] = Document.FileType.PDF
 		elif file_ext == '.docx':
 			validated_data['file_type'] = Document.FileType.DOCX
+		elif file_ext in ['.jpg', '.jpeg', '.png']:
+			validated_data['file_type'] = Document.FileType.IMAGE
 		else:
 			validated_data['file_type'] = Document.FileType.TXT
 

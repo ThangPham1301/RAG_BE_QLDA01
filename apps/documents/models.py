@@ -26,6 +26,8 @@ class Document(models.Model):
 	file_type = models.CharField(max_length=20, choices=FileType.choices)
 	extracted_text = models.TextField(blank=True)
 	summary = models.TextField(blank=True)
+	ocr_layout = models.JSONField(default=dict, blank=True)
+	extracted_fields = models.JSONField(default=dict, blank=True)
 	
 	index_status = models.CharField(max_length=20, choices=IndexStatus.choices, default=IndexStatus.PENDING)
 	indexed_chunks = models.PositiveIntegerField(default=0)

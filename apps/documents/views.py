@@ -221,3 +221,40 @@ class DocumentViewSet(viewsets.ModelViewSet):
             'index_status': doc.index_status,
             'indexed_chunks': doc.indexed_chunks,
         })
+
+    @action(detail=True, methods=['get'], url_path='fields')
+    def fields(self, request, pk=None):
+        """Return extracted administrative fields for debugging and UI display."""
+        doc = self.get_object()
+        return Response({
+            'document_id': doc.id,
+            'title': doc.title,
+            'extracted_fields': doc.extracted_fields or {},
+        })
+
+    @action(detail=True, methods=['get'], url_path='ocr-layout')
+    def ocr_layout(self, request, pk=None):
+        """Return OCR layout lines with coordinates."""
+        doc = self.get_object()
+        return Response({
+            'document_id': doc.id,
+            'title': doc.title,
+            'ocr_layout': doc.ocr_layout or {},
+        })
+
+    @action(detail=True, methods=['post'], url_path='reextract-fields')
+    def reextract_fields(self, request, pk=None):
+        """Re-run administrative field extraction from saved OCR layout/text."""
+        doc = self.get_object()
+        from .admin_doc_extractor import extract_administrative_fields
+
+        doc.extracted_fields = extract_administrative_fields(
+            doc.ocr_layout or {},
+            plain_text=doc.extracted_text or '',
+        )
+        doc.save(update_fields=['extracted_fields'])
+        return Response({
+            'document_id': doc.id,
+            'title': doc.title,
+            'extracted_fields': doc.extracted_fields,
+        })

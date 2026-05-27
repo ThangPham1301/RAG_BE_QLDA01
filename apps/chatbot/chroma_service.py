@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 from typing import Dict, Iterable, List, Optional
+from decouple import config
 
 import chromadb
 
@@ -15,7 +16,7 @@ from .embedding_service import EmbeddingService
 
 class ChromaService:
     def __init__(self, persist_dir: Optional[str] = None, embedding_service: Optional[EmbeddingService] = None):
-        persist_dir = persist_dir or os.environ.get('CHROMA_PERSIST_DIR', './chroma_db')
+        persist_dir = persist_dir or config('CHROMA_PERSIST_DIR', default='./chroma_db')
         # Use new Chroma API (PersistentClient)
         self.client = chromadb.PersistentClient(path=persist_dir)
         self.embedding = embedding_service or EmbeddingService()
@@ -44,7 +45,14 @@ class ChromaService:
         embeddings = self.embedding.embed_texts(texts)
         col.upsert(ids=ids, documents=texts, metadatas=metadatas, embeddings=embeddings)
 
-    def get_relevant(self, project_id: int, query: str, top_k: int = 5, chat_session_id: Optional[int] = None) -> List[Dict]:
+    def get_relevant(self, project_id: int, query: str, top_k: int = 5, chat_session_id: Optional[int] = None, document_id: Optional[int] = None) -> List[Dict]:
+        """Tìm chunks liên quan nhất với query.
+
+        Priority filter:
+        - document_id (nếu có): chỉ search trong 1 file cụ thể
+        - chat_session_id (nếu có): search trong toàn bộ session
+        - Không filter: search toàn project
+        """
         col = self.get_or_create_collection(project_id)
         q_emb = self.embedding.embed_texts([query])[0]
         query_kwargs = {
@@ -53,23 +61,24 @@ class ChromaService:
             'include': ['documents', 'metadatas', 'distances'],
         }
 
-        if chat_session_id is not None:
+        # document_id có priority cao hơn chat_session_id
+        if document_id is not None:
+            query_kwargs['where'] = {'document_id': int(document_id)}
+        elif chat_session_id is not None:
             query_kwargs['where'] = {'chat_session_id': int(chat_session_id)}
 
-        # New Chroma API: don't include 'ids' in include list
         try:
             results = col.query(**query_kwargs)
         except Exception:
-            # If the installed Chroma version rejects the metadata filter,
-            # fall back to broad retrieval and filter in Python.
+            # Fallback: bỏ filter nếu Chroma không hỗ trợ
             query_kwargs.pop('where', None)
             results = col.query(**query_kwargs)
+
         out = []
-        # results fields are lists per query; take first
         docs = results.get('documents', [[]])[0]
         metas = results.get('metadatas', [[]])[0]
         dists = results.get('distances', [[]])[0]
-        ids = results.get('ids', [[]])[0]  # ids are returned automatically
+        ids = results.get('ids', [[]])[0]
         for did, doc, meta, dist in zip(ids, docs, metas, dists):
             out.append({'id': did, 'text': doc, 'metadata': meta, 'score': float(dist)})
         return out

@@ -3,6 +3,17 @@ from __future__ import annotations
 
 import logging
 from typing import List
+from decouple import config
+try:
+    from PIL import Image
+    import pytesseract
+    # Configure path for Windows users via .env, fallback to standard Tesseract path
+    pytesseract.pytesseract.tesseract_cmd = config(
+        'TESSERACT_CMD', 
+        default=r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+    )
+except ImportError:
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -36,18 +47,58 @@ def extract_text_from_pdf(path: str) -> str:
         return ''
     
     parts: List[str] = []
+    has_text = False
+    
     for idx, page in enumerate(doc):
         try:
-            text = page.get_text("text") or page.get_text()
-            if text:
+            # 1. Thử lấy text thông thường trước
+            text = (page.get_text("text") or page.get_text()).strip()
+            
+            # 2. Nếu trang trống hoặc cực ít chữ -> Khả năng cao là ảnh scan -> dùng OCR
+            # Tăng ngưỡng lên 500 ký tự vì chữ ký số điện tử (red seal) thường chứa
+            # 1 layer text ẩn khoảng 100-200 ký tự. Nếu để 50, PyMuPDF sẽ tưởng
+            # đã trích xuất thành công và bỏ qua toàn bộ phần ảnh của văn bản.
+            if len(text) < 500:
+                logger.info(f'[extract_text_from_pdf] Page {idx} has very little text ({len(text)} chars). Falling back to OCR...')
+                try:
+                    # Chuyển trang PDF thành hình ảnh
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # Zoom 2x để rõ chữ hơn
+                    if pix.alpha:
+                        pix = fitz.Pixmap(fitz.csRGB, pix)
+                    
+                    # Convert sang PIL Image
+                    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                    
+                    # Chạy Tesseract OCR (mặc định lấy cả tiếng Việt và Anh)
+                    ocr_text = pytesseract.image_to_string(img, lang="vie+eng").strip()
+                    if ocr_text:
+                        text += f"\n{ocr_text}"
+                except Exception as ocr_exc:
+                    logger.warning(f'[extract_text_from_pdf] OCR failed on page {idx}: {ocr_exc}')
+
+            if text.strip():
                 parts.append(text)
                 logger.debug(f'[extract_text_from_pdf] Page {idx}: {len(text)} chars')
+                has_text = True
+                
         except Exception as e:
             logger.warning(f'[extract_text_from_pdf] Failed to extract page {idx}: {e}')
     
     result = '\n\n'.join(parts)
     logger.debug(f'[extract_text_from_pdf] Total extracted: {len(result)} chars')
     return result
+
+def extract_text_from_image(path: str) -> str:
+    """Extract text from an image file (png, jpg, jpeg) using Tesseract OCR."""
+    try:
+        img = Image.open(path)
+        logger.info(f'[extract_text_from_image] Running OCR on {path}')
+        text = pytesseract.image_to_string(img, lang="vie+eng").strip()
+        logger.debug(f'[extract_text_from_image] Total extracted: {len(text)} chars')
+        return text
+    except Exception as exc:
+        logger.error(f'[extract_text_from_image] OCR Extraction failed: {exc}', exc_info=True)
+        return ''
 
 
 def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> List[str]:

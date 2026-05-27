@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from decouple import config
 
 from django.utils import timezone as django_timezone
 
 from apps.chatbot.chroma_service import ChromaService
 
+from .admin_doc_extractor import extract_administrative_fields
 from .models import Document
-from .parser import chunk_text, extract_text_from_docx, extract_text_from_pdf
+from .ocr_layout_service import OCRLayoutService
+from .parser import chunk_text, extract_text_from_docx, extract_text_from_pdf, extract_text_from_image
+from .text_normalizer import normalize_ocr_text
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +64,10 @@ def populate_document_extracted_text(document: Document) -> int:
 			logger.info(f'[populate_document_extracted_text] Extracting as TXT')
 			text = _extract_text_from_txt(str(abs_path))
 			logger.info(f'[populate_document_extracted_text] TXT extraction result: {len(text or "")} chars')
+		elif file_type in ['jpg', 'jpeg', 'png']:
+			logger.info(f'[populate_document_extracted_text] Extracting as Image (OCR)')
+			text = extract_text_from_image(str(abs_path))
+			logger.info(f'[populate_document_extracted_text] Image OCR extraction result: {len(text or "")} chars')
 		else:
 			logger.warning(f'[populate_document_extracted_text] Unknown file type: {file_type}, returning empty')
 			text = ''
@@ -68,11 +76,57 @@ def populate_document_extracted_text(document: Document) -> int:
 		logger.error(f'[populate_document_extracted_text] Extraction failed: {e}', exc_info=True)
 		raise
 
+	text = normalize_ocr_text(text or '')
+	ocr_layout = {}
+	if file_type in [Document.FileType.PDF, 'pdf', Document.FileType.IMAGE, 'image', 'jpg', 'jpeg', 'png']:
+		try:
+			logger.info(f'[populate_document_extracted_text] Extracting OCR layout for doc_id={document.id}')
+			ocr_service = OCRLayoutService()
+			if file_type == Document.FileType.PDF or file_type == 'pdf':
+				ocr_layout = ocr_service.extract_pdf_layout(str(abs_path))
+			else:
+				ocr_layout = ocr_service.extract_image_layout(str(abs_path))
+			logger.info(
+				'[populate_document_extracted_text] OCR layout pages=%s',
+				len((ocr_layout or {}).get('pages') or []),
+			)
+		except Exception as layout_exc:
+			logger.warning(
+				'[populate_document_extracted_text] OCR layout extraction failed: %s',
+				layout_exc,
+				exc_info=True,
+			)
+			ocr_layout = {}
+
+	extracted_fields = {}
+	try:
+		extracted_fields = extract_administrative_fields(ocr_layout or {}, plain_text=text)
+	except Exception as fields_exc:
+		logger.warning(
+			'[populate_document_extracted_text] Administrative field extraction failed: %s',
+			fields_exc,
+			exc_info=True,
+		)
+
 	if not text or not text.strip():
 		logger.warning(f'[populate_document_extracted_text] Extracted text is empty or whitespace-only')
+	else:
+		# Bước 2: Làm sạch text qua LLM Document Cleaning Agent (tuỳ chọn)
+		enable_cleaning = config('ENABLE_DOC_CLEANING', default='True').lower() in ['true', '1', 'yes']
+		if enable_cleaning:
+			try:
+				logger.info(f'[populate_document_extracted_text] Bắt đầu dọn dẹp text qua LLM...')
+				from apps.chatbot.rag_service import RAGService
+				rag_svc = RAGService(retriever=None)
+				text = normalize_ocr_text(rag_svc.clean_document_text(text))
+			except Exception as clean_exc:
+				logger.error(f'[populate_document_extracted_text] Lỗi làm sạch text: {clean_exc}', exc_info=True)
+				# Vẫn giữ nguyên text cũ nếu bị lỗi
 	
 	document.extracted_text = text or ''
-	document.save(update_fields=['extracted_text'])
+	document.ocr_layout = ocr_layout or {}
+	document.extracted_fields = extracted_fields or {}
+	document.save(update_fields=['extracted_text', 'ocr_layout', 'extracted_fields'])
 	logger.info(f'[populate_document_extracted_text] Saved extracted_text: {len(document.extracted_text)} chars')
 	return len(document.extracted_text)
 
@@ -101,32 +155,100 @@ def index_document_to_chroma(document: Document, chunk_size: int = 1000, overlap
 			)
 			return 0
 
-		logger.info(f'[index_document_to_chroma] Calling chunk_text with chunk_size={chunk_size}')
-		chunks = chunk_text(text=text, chunk_size=chunk_size, overlap=overlap)
-		logger.info(f'[index_document_to_chroma] Chunks created: {len(chunks)}')
-		if not chunks:
-			logger.warning(f'[index_document_to_chroma] No chunks created')
-			Document.objects.filter(pk=document.pk).update(
-				index_status=Document.IndexStatus.FAILED,
-				index_error='Không tạo được chunk nào.',
-				indexed_chunks=0,
-			)
-			return 0
+		enable_intelligent_chunking = config('ENABLE_INTELLIGENT_CHUNKING', default='True').lower() in ['true', '1', 'yes']
+		
+		# Khởi tạo RAGService và cờ cấu trúc
+		from apps.chatbot.rag_service import RAGService
+		rag_svc = RAGService(retriever=None)
+		
+		if enable_intelligent_chunking:
+			logger.info(f'[index_document_to_chroma] Calling intelligent_chunk_document')
+			intelligent_chunks = rag_svc.intelligent_chunk_document(text)
+			logger.info(f'[index_document_to_chroma] Intelligent chunks created: {len(intelligent_chunks)}')
+			
+			if not intelligent_chunks:
+				logger.warning(f'[index_document_to_chroma] No intelligent chunks created')
+				Document.objects.filter(pk=document.pk).update(
+					index_status=Document.IndexStatus.FAILED,
+					index_error='Không tạo được chunk nào qua AI.',
+					indexed_chunks=0,
+				)
+				return 0
+		else:
+			logger.info(f'[index_document_to_chroma] Calling naive chunk_text with chunk_size={chunk_size}')
+			chunks = chunk_text(text=text, chunk_size=chunk_size, overlap=overlap)
+			logger.info(f'[index_document_to_chroma] Naive chunks created: {len(chunks)}')
+			
+			if not chunks:
+				logger.warning(f'[index_document_to_chroma] No chunks created')
+				Document.objects.filter(pk=document.pk).update(
+					index_status=Document.IndexStatus.FAILED,
+					index_error='Không tạo được chunk nào.',
+					indexed_chunks=0,
+				)
+				return 0
+			# Chuyển về định dạng chung để code phía dưới xử lý dễ
+			intelligent_chunks = [{"chunk": c, "chunk_type": "None", "context_score": "high"} for c in chunks]
 
 		vector_items = []
 		file_name = Path(str(document.file)).name if document.file else ''
-		for index, chunk in enumerate(chunks):
+		
+		enable_structure = config('ENABLE_STRUCTURE_DETECTION', default='True').lower() in ['true', '1', 'yes']
+
+		for index, chunk_data in enumerate(intelligent_chunks):
+			raw_chunk_text = chunk_data.get('chunk', '')
+			chunk_type = chunk_data.get('chunk_type', 'Khác')
+			context_score = chunk_data.get('context_score', 'high')
+			
+			if not raw_chunk_text.strip():
+				continue
+			chunk_metadata = {
+				'project_id': document.chat_session.project_id,
+				'chat_session_id': document.chat_session_id,
+				'document_id': document.id,
+				'file_name': file_name,
+				'chunk_index': index,
+				'chunk_type': str(chunk_type),
+				'context_score': str(context_score),
+			}
+			
+			final_chunk_text = raw_chunk_text
+			
+			if enable_structure and len(raw_chunk_text) >= 100:
+				logger.info(f'[index_document_to_chroma] Nhận diện cấu trúc cho chunk {index+1}/{len(intelligent_chunks)}')
+				struct_data = rag_svc.detect_document_structure(raw_chunk_text)
+				
+				# Trích xuất các trường hợp lệ
+				section = struct_data.get('section')
+				agency = struct_data.get('agency')
+				deadline = struct_data.get('deadline')
+				signer = struct_data.get('signer')
+				
+				# Lưu vào metadata (ChromaDB chỉ nhận string, int, float, bool)
+				if section: chunk_metadata['section'] = str(section)
+				if agency: chunk_metadata['agency'] = str(agency)
+				if deadline: chunk_metadata['deadline'] = str(deadline)
+				if signer: chunk_metadata['signer'] = str(signer)
+				
+				# Tạo header thông tin để nối vào đầu chunk text (giúp LLM dễ đọc)
+				header_parts = []
+				if section: header_parts.append(f"Cấu trúc: {section}")
+				if agency: header_parts.append(f"Cơ quan: {agency}")
+				if signer: header_parts.append(f"Người ký: {signer}")
+				if deadline: header_parts.append(f"Thời hạn: {deadline}")
+				
+				if header_parts:
+					final_chunk_text = f"[{' | '.join(header_parts)}]\n{raw_chunk_text}"
+
+			# Nối thêm chunk_type và context_score vào cuối chunk text nếu là intelligent chunk
+			if enable_intelligent_chunking and chunk_type != 'None':
+				final_chunk_text += f"\n[Phân loại: {chunk_type} | Độ rõ ràng ngữ cảnh: {context_score}]"
+
 			vector_items.append(
 				{
 					'id': f'{document.id}_{index}',
-					'text': chunk,
-					'metadata': {
-						'project_id': document.chat_session.project_id,
-						'chat_session_id': document.chat_session_id,
-						'document_id': document.id,
-						'file_name': file_name,
-						'chunk_index': index,
-					},
+					'text': final_chunk_text,
+					'metadata': chunk_metadata,
 				}
 			)
 

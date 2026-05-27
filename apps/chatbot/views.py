@@ -1,5 +1,8 @@
 import logging
+from django.http import StreamingHttpResponse
 from django.shortcuts import get_object_or_404
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.views import APIView
@@ -78,11 +81,15 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
         try:
             # Import here to avoid circular imports
             from .chat_service import ChatService
-            
+
             chat_service = ChatService()
 
+            # document_id optional — cho phép hỏi về 1 file cụ thể
+            document_id = request.data.get('document_id')
+            document_id = int(document_id) if document_id else None
+
             # Get RAG response
-            response_data = chat_service.ask_question(session.id, content)
+            response_data = chat_service.ask_question(session.id, content, document_id=document_id)
 
             # Update session timestamp
             session.last_message_at = timezone.now()
@@ -122,7 +129,16 @@ class ChatSendView(APIView):
             from .chat_service import ChatService
 
             chat_service = ChatService()
-            response_data = chat_service.ask_question(session.id, serializer.validated_data['content'])
+
+            # document_id optional — cho phép hỏi về 1 file cụ thể
+            document_id = request.data.get('document_id')
+            document_id = int(document_id) if document_id else None
+
+            response_data = chat_service.ask_question(
+                session.id,
+                serializer.validated_data['content'],
+                document_id=document_id,
+            )
             session.last_message_at = timezone.now()
             session.save(update_fields=['last_message_at'])
             
@@ -139,6 +155,55 @@ class ChatSendView(APIView):
         except Exception as e:
             logger.error(f'Error in chat send: {e}', exc_info=True)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ChatStreamView(APIView):
+    """SSE streaming endpoint — /api/chat/stream/
+
+    Dùng Server-Sent Events (SSE) để push từng token LLM về FE ngay khi sinh ra.
+    FE dùng fetch() + ReadableStream để đọc, không dùng EventSource
+    (vì EventSource không support POST và auth header).
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        session_id = request.data.get('chat_session_id')
+        content = request.data.get('content', '').strip()
+
+        if not session_id:
+            return Response({'error': 'chat_session_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not content:
+            return Response({'error': 'content is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        session = get_object_or_404(ChatSession, id=session_id, user=request.user, is_deleted=False)
+
+        document_id = request.data.get('document_id')
+        document_id = int(document_id) if document_id else None
+
+        from .chat_service import ChatService
+        chat_service = ChatService()
+
+        def event_stream():
+            yield 'retry: 3000\n\n'  # FE retry sau 3s nếu connection drop
+            try:
+                for sse_event in chat_service.ask_question_stream(
+                    session_id=session.id,
+                    question=content,
+                    document_id=document_id,
+                ):
+                    yield sse_event
+            except Exception as exc:
+                import json
+                logger.error('ChatStreamView: unhandled error: %s', exc, exc_info=True)
+                yield f'data: {json.dumps({"type": "error", "content": str(exc)[:80]})}\n\n'
+
+        response = StreamingHttpResponse(
+            event_stream(),
+            content_type='text/event-stream',
+        )
+        response['Cache-Control'] = 'no-cache'
+        response['X-Accel-Buffering'] = 'no'  # tắt buffering ở nginx
+        return response
 
 
 class ChatMessageViewSet(viewsets.ReadOnlyModelViewSet):
