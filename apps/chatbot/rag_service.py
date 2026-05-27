@@ -156,21 +156,46 @@ class RAGService:
             logger.debug('RAGService.summarize_document direct mode, len=%s', len(document_text))
             return self.llm.generate(prompt, max_tokens=self.answer_max_tokens)
 
-        # Map-Reduce: text dài → tóm tắt từng phần → tổng hợp
+        # Map-Reduce: text dài → tóm tắt từng phần theo cấu trúc hành chính → tổng hợp
         logger.debug('RAGService.summarize_document map-reduce mode, total_len=%s', len(document_text))
-        sections = []
-        for i in range(0, len(document_text), section_size):
-            sections.append(document_text[i:i + section_size])
+        try:
+            from apps.documents.parser import chunk_administrative_text
+
+            admin_chunks = chunk_administrative_text(document_text, chunk_size=section_size)
+            sections = [
+                {
+                    'text': item.get('chunk', ''),
+                    'chunk_type': item.get('chunk_type', 'Khác'),
+                }
+                for item in admin_chunks
+                if item.get('chunk', '').strip()
+            ]
+        except Exception as exc:
+            logger.warning('RAGService.summarize_document administrative chunking failed: %s', exc)
+            sections = []
+
+        if not sections:
+            sections = [
+                {
+                    'text': document_text[i:i + section_size],
+                    'chunk_type': 'Khác',
+                }
+                for i in range(0, len(document_text), section_size)
+            ]
 
         section_summaries = []
         for idx, section in enumerate(sections):
+            section_text = section.get('text', '')
+            chunk_type = section.get('chunk_type', 'Khác')
             section_prompt = (
                 f"{instruction}\n\n"
-                f"Tóm tắt ngắn gọn phần {idx + 1}/{len(sections)} của văn bản sau (không tự suy diễn):\n\n"
-                f"{section}"
+                f"Tóm tắt ngắn gọn phần {idx + 1}/{len(sections)} của văn bản sau.\n"
+                f"Loại phần: {chunk_type}.\n"
+                f"Chỉ dùng thông tin trong phần này, không tự suy diễn, giữ đúng số hiệu/ngày/tên riêng nếu có:\n\n"
+                f"{section_text}"
             )
             summary = self.llm.generate(section_prompt, max_tokens=512)
-            section_summaries.append(f"[Phần {idx + 1}] {summary}")
+            section_summaries.append(f"[Phần {idx + 1} - {chunk_type}] {summary}")
             logger.debug('RAGService.summarize_document section %s/%s done', idx + 1, len(sections))
 
         # Reduce: tổng hợp các bản tóm tắt

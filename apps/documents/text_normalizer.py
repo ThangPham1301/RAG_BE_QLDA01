@@ -10,12 +10,69 @@ except Exception:  # pragma: no cover - optional dependency
 
 
 COMMON_ADMIN_REPLACEMENTS = {
-    "CONG HOA XA HOI CHU NGHIA VIET NAM": "CONG HOA XA HOI CHU NGHIA VIET NAM",
-    "DOC LAP - TU DO - HANH PHUC": "DOC LAP - TU DO - HANH PHUC",
-    "THU TUONG": "THU TUONG",
-    "PHO THU TUONG": "PHO THU TUONG",
-    "BO TRUONG": "BO TRUONG",
+    "ngäy": "ngày",
+    "thäng": "tháng",
+    "näm": "năm",
+    "Ha Nói": "Hà Nội",
+    "Ha Noi": "Hà Nội",
+    "Hà Nói": "Hà Nội",
+    "Ha Nội": "Hà Nội",
+    "Hä Nội": "Hà Nội",
+    "CONG HOA XA HOI CHU NGHIIA VIET NAM": "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM",
+    "CONG HOA XA HOI CHU NGHIA VIET NAM": "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM",
+    "DOC LAP - TU DO - HANH PHUC": "Độc lập - Tự do - Hạnh phúc",
+    "VAN PHONG CHINH PHU": "VĂN PHÒNG CHÍNH PHỦ",
+    "BO TRUONG": "BỘ TRƯỞNG",
+    "PHO CHU NHIEM": "PHÓ CHỦ NHIỆM",
+    "PHO THU TUONG": "PHÓ THỦ TƯỚNG",
+    "THU TUONG": "THỦ TƯỚNG",
+    "CHU NHIEM": "CHỦ NHIỆM",
+    "CHINH PHU": "CHÍNH PHỦ",
+    "BO XAY DUNG": "Bộ Xây dựng",
+    "BO CONG THUONG": "Bộ Công Thương",
+    "Noi nhận": "Nơi nhận",
+    "Noi nhan": "Nơi nhận",
+    "Như tren": "Như trên",
+    "Nhu tren": "Như trên",
+    "Chiên dịch": "Chiến dịch",
+    "Chiến dich": "Chiến dịch",
+    "Đông Khê": "Đông Khê",
+    "Dong Khe": "Đông Khê",
+    "Huu Nghi": "Hữu Nghị",
+    "Chi Lang": "Chi Lăng",
+    "Tra Linh": "Trà Lĩnh",
+    "Cao Bang": "Cao Bằng",
+    "Lang Son": "Lạng Sơn",
+    "quyển han": "quyền hạn",
+    "quyền han": "quyền hạn",
+    "bỗ sung": "bổ sung",
+    "bô sung": "bổ sung",
+    "dé triển khai": "để triển khai",
+    "de triển khai": "để triển khai",
+    "an toan lao dong": "an toàn lao động",
 }
+
+
+COMMON_ADMIN_REGEX_REPLACEMENTS = [
+    (r"\bVÀ\s+thành lập\b", "V/v thành lập"),
+    (r"\bV[àa]\s+thành lập\b", "V/v thành lập"),
+    (r"\bngay(?=\s+\d{1,2})", "ngày"),
+    (r"\bthang(?=\s+\d{1,2})", "tháng"),
+    (r"\bnam(?=\s+\d{4})", "năm"),
+    (r"\bng[äa]y(?=\s+\d{1,2})", "ngày"),
+    (r"\bth[äa]ng(?=\s+\d{1,2})", "tháng"),
+    (r"\bn[äa]m(?=\s+\d{4})", "năm"),
+    (r"\bS[óo0]\s*[:：]\s*", "Số: "),
+    (r"\bK[ií]nh g[ưu]i\b", "Kính gửi"),
+    (r"\bX[ée]t d[eề] ngh[ịi]\b", "Xét đề nghị"),
+    (r"\bth[àa]nh l[ậa]p\b", "thành lập"),
+    (r"\bQuy[eế]t d[ịi]nh\b", "Quyết định"),
+    (r"\bd[ựu]\s+th[ảa]o\b", "dự thảo"),
+    (r"\bTh[ủu]\s+t[ưu][ớo]ng\b", "Thủ tướng"),
+    (r"\bB[ộo]\s+tr[ưu][ởo]ng\b", "Bộ trưởng"),
+    (r"\bCh[ủu]\s+nhi[ệe]m\b", "Chủ nhiệm"),
+    (r"\bPh[oó]\s+ch[ủu]\s+nhi[ệe]m\b", "Phó Chủ nhiệm"),
+]
 
 
 def fix_mojibake(text: str) -> str:
@@ -49,6 +106,8 @@ def fix_common_admin_ocr_errors(text: str) -> str:
     # Keep this conservative: only normalize exact repeated OCR artifacts.
     for wrong, right in COMMON_ADMIN_REPLACEMENTS.items():
         text = re.sub(re.escape(wrong), right, text, flags=re.IGNORECASE)
+    for pattern, replacement in COMMON_ADMIN_REGEX_REPLACEMENTS:
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
     return text
 
 
@@ -62,3 +121,13 @@ def normalize_ocr_text(text: str) -> str:
 
 def normalize_lines(lines: list[str]) -> list[str]:
     return [line for line in (normalize_ocr_text(line) for line in lines) if line]
+
+
+def layout_to_text(ocr_layout: dict) -> str:
+    parts: list[str] = []
+    for page in (ocr_layout or {}).get("pages") or []:
+        lines = [normalize_ocr_text(str(line.get("text") or "")) for line in page.get("lines") or []]
+        lines = [line for line in lines if line]
+        if lines:
+            parts.append("\n".join(lines))
+    return normalize_ocr_text("\n\n".join(parts))
