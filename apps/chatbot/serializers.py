@@ -43,7 +43,11 @@ class ChatSessionSerializer(serializers.ModelSerializer):
 		return obj.messages.count()
 
 	def get_documents_count(self, obj):
-		return obj.documents.filter(is_deleted=False).count()
+		try:
+			from apps.teams.permissions import accessible_documents_for_session
+			return accessible_documents_for_session(obj).count()
+		except Exception:
+			return obj.documents.filter(is_deleted=False).count()
 
 	def create(self, validated_data):
 		validated_data['user'] = self.context['request'].user
@@ -59,7 +63,14 @@ class ChatSessionDetailSerializer(ChatSessionSerializer):
 
 	def get_documents(self, obj):
 		from apps.documents.serializers import DocumentSerializer
-		return DocumentSerializer(obj.documents.filter(is_deleted=False).order_by('-uploaded_at'), many=True, context=self.context).data
+		try:
+			from apps.teams.permissions import accessible_documents_for_session
+			documents = accessible_documents_for_session(obj).order_by('-uploaded_at')
+		except Exception:
+			documents = obj.documents.filter(is_deleted=False).order_by('-uploaded_at')
+		context = dict(self.context)
+		context['chat_session_id'] = obj.id
+		return DocumentSerializer(documents, many=True, context=context).data
 
 
 class ChatMessageCreateSerializer(serializers.Serializer):

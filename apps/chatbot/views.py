@@ -87,6 +87,12 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
             # document_id optional — cho phép hỏi về 1 file cụ thể
             document_id = request.data.get('document_id')
             document_id = int(document_id) if document_id else None
+            if document_id:
+                from apps.documents.models import Document
+                from apps.teams.permissions import user_can_access_document
+                document = Document.objects.filter(id=document_id, is_deleted=False).first()
+                if not document or not user_can_access_document(request.user, document):
+                    return Response({'error': 'document is not available'}, status=status.HTTP_403_FORBIDDEN)
 
             # Get RAG response
             response_data = chat_service.ask_question(session.id, content, document_id=document_id)
@@ -133,6 +139,12 @@ class ChatSendView(APIView):
             # document_id optional — cho phép hỏi về 1 file cụ thể
             document_id = request.data.get('document_id')
             document_id = int(document_id) if document_id else None
+            if document_id:
+                from apps.documents.models import Document
+                from apps.teams.permissions import user_can_access_document
+                document = Document.objects.filter(id=document_id, is_deleted=False).first()
+                if not document or not user_can_access_document(request.user, document):
+                    return Response({'error': 'document is not available'}, status=status.HTTP_403_FORBIDDEN)
 
             response_data = chat_service.ask_question(
                 session.id,
@@ -179,6 +191,12 @@ class ChatStreamView(APIView):
 
         document_id = request.data.get('document_id')
         document_id = int(document_id) if document_id else None
+        if document_id:
+            from apps.documents.models import Document
+            from apps.teams.permissions import user_can_access_document
+            document = Document.objects.filter(id=document_id, is_deleted=False).first()
+            if not document or not user_can_access_document(request.user, document):
+                return Response({'error': 'document is not available'}, status=status.HTTP_403_FORBIDDEN)
 
         from .chat_service import ChatService
         chat_service = ChatService()

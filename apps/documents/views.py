@@ -9,6 +9,8 @@ from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from django.utils import timezone
 from .models import Document
 from .serializers import DocumentSerializer, DocumentUploadSerializer
+from apps.teams.permissions import accessible_documents_for_user, user_can_access_document
+from apps.teams.serializers import CreateDocumentShareSerializer, DocumentShareSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -21,14 +23,15 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Document.objects.filter(
-            chat_session__user=user,
-            is_deleted=False,
-        ).select_related('chat_session', 'chat_session__project', 'uploaded_by').order_by('-uploaded_at')
+        queryset = accessible_documents_for_user(user).select_related(
+            'chat_session', 'chat_session__project', 'uploaded_by'
+        ).order_by('-uploaded_at')
 
         chat_session_id = self.request.query_params.get('chat_session_id')
         if chat_session_id:
-            queryset = queryset.filter(chat_session_id=chat_session_id)
+            from apps.teams.models import ChatDocumentAttachment
+            attached_ids = ChatDocumentAttachment.objects.filter(chat_session_id=chat_session_id).values_list('document_id', flat=True)
+            queryset = queryset.filter(models.Q(chat_session_id=chat_session_id) | models.Q(id__in=attached_ids))
 
         return queryset
 
@@ -143,6 +146,13 @@ class DocumentViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         """Soft delete document"""
         doc = self.get_object()
+        if doc.team_links.exists():
+            return Response(
+                {'error': 'Team documents cannot be deleted from the document endpoint. Remove them from a chat instead.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if doc.chat_session.user_id != request.user.id and doc.uploaded_by_id != request.user.id and not request.user.is_staff:
+            return Response({'error': 'You do not have permission to delete this document.'}, status=status.HTTP_403_FORBIDDEN)
         doc.is_deleted = True
         doc.deleted_at = timezone.now()
         doc.save()
@@ -175,10 +185,10 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
         # --- Fetch document (scoped to user unless admin) ---
         try:
-            if user.is_staff:
-                doc = Document.objects.get(pk=pk, is_deleted=False)
-            else:
-                doc = Document.objects.get(pk=pk, is_deleted=False, chat_session__user=user)
+            doc = Document.objects.get(pk=pk, is_deleted=False)
+            if not user_can_access_document(user, doc):
+                from django.http import HttpResponseForbidden
+                return HttpResponseForbidden('You do not have access to this document.')
         except Document.DoesNotExist:
             raise Http404('Document not found.')
 
@@ -209,9 +219,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
     def get_text(self, request, pk=None):
         """Return the full extracted text of a document for preview.
         Bypasses per-user queryset filter so system-wide Library can access any doc."""
-        try:
-            doc = Document.objects.get(pk=pk, is_deleted=False)
-        except Document.DoesNotExist:
+        doc = Document.objects.filter(pk=pk, is_deleted=False).first()
+        if not doc or not user_can_access_document(request.user, doc):
             return Response({'detail': 'Document not found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response({
             'document_id': doc.id,
@@ -258,3 +267,11 @@ class DocumentViewSet(viewsets.ModelViewSet):
             'title': doc.title,
             'extracted_fields': doc.extracted_fields,
         })
+
+    @action(detail=True, methods=['post'])
+    def share(self, request, pk=None):
+        doc = self.get_object()
+        serializer = CreateDocumentShareSerializer(data=request.data, context={'request': request, 'document': doc})
+        serializer.is_valid(raise_exception=True)
+        share = serializer.save()
+        return Response(DocumentShareSerializer(share).data, status=status.HTTP_201_CREATED)
