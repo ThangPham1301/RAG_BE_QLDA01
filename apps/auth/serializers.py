@@ -104,13 +104,11 @@ class LoginSerializer(serializers.Serializer):
         if not user:
             raise serializers.ValidationError('Invalid email or password')
         
-        if not user.is_email_verified:
-            raise serializers.ValidationError('Email not verified. Please check your email.')
-        
         if not user.check_password(data['password']):
             raise serializers.ValidationError('Invalid email or password')
         
         data['user'] = user
+        data['email_not_verified'] = not user.is_email_verified
         return data
 
 

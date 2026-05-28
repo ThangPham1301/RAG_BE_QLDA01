@@ -14,6 +14,7 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
+from django.shortcuts import redirect
 from django.utils import timezone
 from django_ratelimit.decorators import ratelimit
 from cloudinary import uploader
@@ -32,6 +33,11 @@ logger = logging.getLogger(__name__)
 
 class EmailDeliveryError(Exception):
     """Raised when transactional email cannot be delivered."""
+
+
+def get_frontend_url():
+    """Return the configured frontend base URL without a trailing slash."""
+    return getattr(settings, 'FRONTEND_URL', 'http://localhost:5173').rstrip('/')
 
 
 def get_client_ip(request):
@@ -79,6 +85,30 @@ def send_email(subject, email_to, template_name, context):
         raise EmailDeliveryError(str(e)) from e
 
 
+def send_verification_email(user):
+    """Send or resend the account verification email."""
+    verification_token = EmailVerificationToken.objects.filter(
+        user=user,
+        is_used=False,
+        expires_at__gt=timezone.now()
+    ).first()
+
+    if not verification_token:
+        verification_token = EmailVerificationToken.create_token(user)
+
+    email_context = {
+        'user_name': user.get_full_name() or user.email,
+        'verification_link': f"{get_frontend_url()}/verify-email?token={verification_token.token}"
+    }
+
+    send_email(
+        subject='Verify Your Email',
+        email_to=user.email,
+        template_name='verify_email',
+        context=email_context
+    )
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @ratelimit(key='ip', rate='5/h', method='POST')
@@ -92,33 +122,7 @@ def signup_view(request):
     if serializer.is_valid():
         user = serializer.save()
         try:
-            # Send verification email
-            verification_token = EmailVerificationToken.objects.get(user=user)
-            email_context = {
-                'user_name': user.get_full_name() or user.email,
-                'verification_link': f"{settings.GOOGLE_OAUTH_REDIRECT_URI.split('/api')[0]}/verify-email?token={verification_token.token}"
-            }
-            
-            send_email(
-                subject='Verify Your Email',
-                email_to=user.email,
-                template_name='verify_email',
-                context=email_context
-            )
-
-            # Send signup OTP
-            otp_token = OTPToken.create_otp(user, purpose='signup')
-            otp_context = {
-                'user_name': user.get_full_name() or user.email,
-                'otp': otp_token.otp,
-                'expiry_minutes': settings.OTP_EXPIRY_MINUTES
-            }
-            send_email(
-                subject='Verify Your Email - OTP',
-                email_to=user.email,
-                template_name='signup_otp',
-                context=otp_context
-            )
+            send_verification_email(user)
         except EmailDeliveryError:
             user.delete()
             return Response({
@@ -133,6 +137,18 @@ def signup_view(request):
     return Response({
         'detail': format_serializer_errors(serializer.errors)
     }, status=status.HTTP_400_BAD_REQUEST)
+
+
+def email_verification_redirect_view(request):
+    """
+    Backward-compatible GET endpoint for email links that point to the backend.
+    Redirects users to the frontend verification page with the same token.
+    """
+    token = request.GET.get('token', '')
+    redirect_url = f"{get_frontend_url()}/verify-email"
+    if token:
+        redirect_url = f"{redirect_url}?token={token}"
+    return redirect(redirect_url)
 
 
 @api_view(['POST'])
@@ -187,6 +203,22 @@ def login_view(request):
     
     if serializer.is_valid():
         user = serializer.validated_data['user']
+
+        if serializer.validated_data.get('email_not_verified'):
+            try:
+                send_verification_email(user)
+            except EmailDeliveryError:
+                return Response({
+                    'detail': 'Your email is not verified, and we could not send a verification email right now. Please try again later.',
+                    'code': 'email_not_verified'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+            return Response({
+                'detail': 'Your email is not verified. We have sent a verification email. Please check your inbox to confirm your account.',
+                'code': 'email_not_verified',
+                'email': user.email
+            }, status=status.HTTP_403_FORBIDDEN)
+
         user.update_last_login()
         
         # Generate tokens
@@ -510,6 +542,12 @@ def google_oauth_callback_view(request):
     Google OAuth callback endpoint.
     POST /api/auth/google/callback
     """
+    google_client_id = getattr(settings, 'GOOGLE_CLIENT_ID', '')
+    if not google_client_id or google_client_id.startswith('your-'):
+        return Response({
+            'error': 'Google login is not configured on the server'
+        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
     serializer = GoogleOAuthSerializer(data=request.data)
     
     if serializer.is_valid():
@@ -520,13 +558,17 @@ def google_oauth_callback_view(request):
             idinfo = id_token.verify_oauth2_token(
                 id_token_str,
                 google_requests.Request(),
-                settings.GOOGLE_CLIENT_ID
+                settings.GOOGLE_CLIENT_ID,
+                clock_skew_in_seconds=30
             )
             
             if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
                 raise ValueError('Invalid issuer')
             
             email = idinfo['email']
+            if not idinfo.get('email_verified', False):
+                raise ValueError('Google email is not verified')
+
             google_id = idinfo['sub']
             first_name = idinfo.get('given_name', '')
             last_name = idinfo.get('family_name', '')
@@ -539,15 +581,25 @@ def google_oauth_callback_view(request):
                 user = User.objects.filter(email=email).first()
 
                 if user:
-                    user.google_id = google_id
-                    user.is_email_verified = True
+                    update_fields = []
+                    if user.google_id != google_id:
+                        user.google_id = google_id
+                        update_fields.append('google_id')
+                    if not user.is_email_verified:
+                        user.is_email_verified = True
+                        update_fields.append('is_email_verified')
                     if first_name and not user.first_name:
                         user.first_name = first_name
+                        update_fields.append('first_name')
                     if last_name and not user.last_name:
                         user.last_name = last_name
-                    if picture_url and not user.avatar_url:
+                        update_fields.append('last_name')
+                    should_set_google_avatar = bool(picture_url and not user.avatar_url)
+                    if should_set_google_avatar:
                         user.avatar_url = picture_url
-                    user.save(update_fields=['google_id', 'is_email_verified', 'first_name', 'last_name', 'avatar_url'])
+                        update_fields.append('avatar_url')
+                    if update_fields:
+                        user.save(update_fields=update_fields)
                 else:
                     user = User.objects.create(
                         email=email,
@@ -560,16 +612,13 @@ def google_oauth_callback_view(request):
                     )
             else:
                 updated_fields = []
-                if user.email != email:
-                    user.email = email
-                    updated_fields.append('email')
-                if first_name and user.first_name != first_name:
+                if first_name and not user.first_name:
                     user.first_name = first_name
                     updated_fields.append('first_name')
-                if last_name and user.last_name != last_name:
+                if last_name and not user.last_name:
                     user.last_name = last_name
                     updated_fields.append('last_name')
-                if picture_url and user.avatar_url != picture_url:
+                if picture_url and not user.avatar_url:
                     user.avatar_url = picture_url
                     updated_fields.append('avatar_url')
 
@@ -596,10 +645,11 @@ def google_oauth_callback_view(request):
             }, status=status.HTTP_200_OK)
         
         except Exception as e:
-            logger.error(f"Google OAuth error: {str(e)}")
-            return Response({
-                'error': 'Invalid Google token'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            logger.error("Google OAuth error: %s", str(e), exc_info=True)
+            response_data = {'error': 'Invalid Google token'}
+            if settings.DEBUG:
+                response_data['detail'] = str(e)
+            return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
