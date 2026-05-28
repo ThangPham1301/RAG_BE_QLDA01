@@ -71,8 +71,12 @@ class OCRLayoutService:
                     tmp_path = tmp.name
                 try:
                     pix.save(tmp_path)
-                    page_layout = self.extract_image_layout(tmp_path)
+                    page_layout = self.extract_image_layout(tmp_path, include_signature_crop=False)
                     lines = (page_layout.get("pages") or [{}])[0].get("lines") or []
+                    lines = self._merge_lines(
+                        lines,
+                        self._extract_signature_crop_lines(tmp_path, pix.width, pix.height),
+                    )
                     pages.append(
                         {
                             "page": page_index + 1,
@@ -91,21 +95,130 @@ class OCRLayoutService:
             return {"pages": pages}
         return {"pages": pages}
 
-    def extract_image_layout(self, image_path: str) -> Dict[str, Any]:
+    def extract_image_layout(self, image_path: str, include_signature_crop: bool = True) -> Dict[str, Any]:
         remote_layout = self._extract_with_remote_service(image_path)
         if remote_layout is not None:
+            if include_signature_crop:
+                remote_layout = self._append_signature_crop(image_path, remote_layout)
             return remote_layout
 
         paddle = self._get_paddle()
         if paddle:
             try:
-                return self._extract_with_paddle(paddle, image_path)
+                layout = self._extract_with_paddle(paddle, image_path)
+                if include_signature_crop:
+                    layout = self._append_signature_crop(image_path, layout)
+                return layout
             except Exception as exc:
                 logger.warning("[OCRLayoutService] PaddleOCR failed, fallback to Tesseract: %s", exc)
 
         if self._ensure_tesseract():
-            return self._extract_with_tesseract(image_path)
+            layout = self._extract_with_tesseract(image_path)
+            if include_signature_crop:
+                layout = self._append_signature_crop(image_path, layout)
+            return layout
         return {"pages": []}
+
+    def _append_signature_crop(self, image_path: str, layout: Dict[str, Any]) -> Dict[str, Any]:
+        pages = (layout or {}).get("pages") or []
+        if not pages:
+            return layout
+        page = pages[0]
+        width = int(page.get("width") or 0)
+        height = int(page.get("height") or 0)
+        if not width or not height:
+            return layout
+        page["lines"] = self._merge_lines(
+            page.get("lines") or [],
+            self._extract_signature_crop_lines(image_path, width, height),
+        )
+        return {"pages": pages}
+
+    def _extract_signature_crop_lines(self, image_path: str, width: int, height: int) -> List[Dict[str, Any]]:
+        if not config("OCR_SIGNATURE_CROP_ENABLED", default=True, cast=bool):
+            return []
+
+        try:
+            from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+        except Exception as exc:
+            logger.info("[OCRLayoutService] PIL unavailable for signature crop: %s", exc)
+            return []
+
+        # Administrative signatures are usually at the lower-right area. The
+        # crop also includes a little center-left because seals can shift the name.
+        crop_box = (
+            int(width * 0.32),
+            int(height * 0.50),
+            width,
+            height,
+        )
+        scale = float(config("OCR_SIGNATURE_CROP_SCALE", default=2.0, cast=float))
+
+        try:
+            image = Image.open(image_path).convert("RGB")
+            crop = image.crop(crop_box)
+            if scale > 1:
+                crop = crop.resize((int(crop.width * scale), int(crop.height * scale)))
+            crop = ImageOps.grayscale(crop)
+            crop = ImageOps.autocontrast(crop)
+            crop = ImageEnhance.Contrast(crop).enhance(1.6)
+            crop = crop.filter(ImageFilter.SHARPEN)
+
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                crop_path = tmp.name
+            try:
+                crop.save(crop_path)
+                crop_layout = self.extract_image_layout(crop_path, include_signature_crop=False)
+            finally:
+                try:
+                    os.remove(crop_path)
+                except OSError:
+                    pass
+        except Exception as exc:
+            logger.info("[OCRLayoutService] Signature crop OCR failed: %s", exc)
+            return []
+
+        lines = []
+        offset_x, offset_y = crop_box[0], crop_box[1]
+        for page in (crop_layout or {}).get("pages") or []:
+            for line in page.get("lines") or []:
+                bbox = line.get("bbox") or [0, 0, 0, 0]
+                if len(bbox) != 4:
+                    continue
+                remapped = [
+                    float(bbox[0]) / scale + offset_x,
+                    float(bbox[1]) / scale + offset_y,
+                    float(bbox[2]) / scale + offset_x,
+                    float(bbox[3]) / scale + offset_y,
+                ]
+                text = normalize_ocr_text(str(line.get("text") or ""))
+                if text:
+                    lines.append(
+                        {
+                            "text": text,
+                            "bbox": remapped,
+                            "confidence": line.get("confidence"),
+                            "source": "signature_crop",
+                        }
+                    )
+        return lines
+
+    def _merge_lines(self, base_lines: List[Dict[str, Any]], extra_lines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        merged = list(base_lines or [])
+        for extra in extra_lines or []:
+            extra_text = normalize_ocr_text(str(extra.get("text") or ""))
+            extra_box = extra.get("bbox") or [0, 0, 0, 0]
+            duplicate = False
+            for current in merged:
+                current_text = normalize_ocr_text(str(current.get("text") or ""))
+                current_box = current.get("bbox") or [0, 0, 0, 0]
+                if extra_text == current_text and len(current_box) == 4:
+                    if abs(float(extra_box[1]) - float(current_box[1])) < 30:
+                        duplicate = True
+                        break
+            if not duplicate:
+                merged.append(extra)
+        return sorted(merged, key=lambda item: ((item.get("bbox") or [0, 0, 0, 0])[1], (item.get("bbox") or [0, 0, 0, 0])[0]))
 
     def _extract_with_remote_service(self, image_path: str) -> Dict[str, Any] | None:
         use_remote = config("OCR_USE_REMOTE", default=True, cast=bool)
@@ -136,13 +249,15 @@ class OCRLayoutService:
                 text = normalize_ocr_text(str(line.get("text") or ""))
                 if not text:
                     continue
-                lines.append(
-                    {
-                        "text": text,
-                        "bbox": line.get("bbox") or [0, 0, 0, 0],
-                        "confidence": line.get("confidence"),
-                    }
-                )
+                item = {
+                    "text": text,
+                    "bbox": line.get("bbox") or [0, 0, 0, 0],
+                    "confidence": line.get("confidence"),
+                }
+                for key in ["recognizer", "paddle_text", "source"]:
+                    if line.get(key):
+                        item[key] = line.get(key)
+                lines.append(item)
             pages.append(
                 {
                     "page": page.get("page") or len(pages) + 1,

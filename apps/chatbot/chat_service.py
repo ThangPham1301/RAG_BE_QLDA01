@@ -154,7 +154,8 @@ class ChatService:
 		Returns:
 			(answer_text, retrieved_chunks)
 		"""
-		documents = list(session.documents.filter(is_deleted=False).order_by('uploaded_at'))
+		from apps.teams.permissions import accessible_documents_for_session
+		documents = list(accessible_documents_for_session(session).order_by('uploaded_at'))
 		if not documents:
 			return 'Chưa có tài liệu nào trong cuộc trò chuyện này.', []
 
@@ -184,7 +185,8 @@ class ChatService:
 
 	def _handle_signer_question(self, session, document_id: Optional[int] = None) -> tuple:
 		"""Answer signer questions from extracted fields only."""
-		documents = list(session.documents.filter(is_deleted=False).order_by('uploaded_at'))
+		from apps.teams.permissions import accessible_documents_for_session
+		documents = list(accessible_documents_for_session(session).order_by('uploaded_at'))
 		if not documents:
 			return 'Chưa có tài liệu nào trong cuộc trò chuyện này.', []
 
@@ -216,7 +218,8 @@ class ChatService:
 
 	def _handle_extracted_field_question(self, session, field_key: str, label: str, document_id: Optional[int] = None) -> tuple:
 		"""Answer deterministic document-field questions from extracted fields."""
-		documents = list(session.documents.filter(is_deleted=False).order_by('uploaded_at'))
+		from apps.teams.permissions import accessible_documents_for_session
+		documents = list(accessible_documents_for_session(session).order_by('uploaded_at'))
 		if not documents:
 			return 'Chưa có tài liệu nào trong cuộc trò chuyện này.', []
 
@@ -391,7 +394,7 @@ class ChatService:
 			}
 			documents = {
 				doc.id: doc
-				for doc in Document.objects.filter(id__in=doc_ids, chat_session_id=session.id)
+			for doc in Document.objects.filter(id__in=doc_ids, is_deleted=False)
 			}
 
 			context_objects = []
@@ -704,7 +707,7 @@ class ChatService:
 				}
 				docs_map = {
 					doc.id: doc
-					for doc in Document.objects.filter(id__in=doc_ids, chat_session_id=session.id)
+					for doc in Document.objects.filter(id__in=doc_ids, is_deleted=False)
 				}
 				context_objects = []
 				for chunk in retrieved_chunks:

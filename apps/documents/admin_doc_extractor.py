@@ -100,6 +100,40 @@ def _has_signing_title(text: str) -> bool:
     return any(keyword in low for keyword in SIGNING_TITLE_KEYWORDS)
 
 
+def _has_signature_marker(text: str) -> bool:
+    low = _fold(text)
+    return any(keyword in low for keyword in ["kt.", "tm.", "tl.", "tuq."])
+
+
+def _is_signature_title_anchor_line(text: str) -> bool:
+    low = _fold(text)
+    strong_keywords = [
+        "kt.",
+        "tm.",
+        "tl.",
+        "tuq.",
+        "pho chu nhiem",
+        "chu nhiem",
+        "pho thu tuong",
+        "bo truong",
+        "chu tich",
+        "giam doc",
+    ]
+    if not any(keyword in low for keyword in strong_keywords):
+        return False
+
+    stripped = low.strip()
+    is_list_item = stripped.startswith("-") or stripped.startswith("+")
+    if is_list_item:
+        return False
+
+    # "Noi nhan: KT. ..." is a common OCR merge of two columns; keep it only
+    # when the line contains an explicit signing marker.
+    if _is_recipient_context_line(text) and not _has_signature_marker(text):
+        return False
+    return True
+
+
 def _is_recipient_context_line(text: str) -> bool:
     low = _fold(text).strip()
     if not low:
@@ -117,7 +151,7 @@ def _find_signature_title_anchors(page_lines: List[Dict[str, Any]]) -> List[Dict
     anchors = []
     for line in page_lines:
         text = _line_text(line)
-        if _has_signing_title(text):
+        if _is_signature_title_anchor_line(text):
             anchors.append(line)
     return anchors
 
@@ -217,6 +251,44 @@ def _plain_text_lines(plain_text: str) -> List[Dict[str, Any]]:
         for index, line in enumerate((plain_text or "").splitlines())
         if normalize_ocr_text(line)
     ]
+
+
+def _extract_signer_from_text_block(plain_text: str) -> Dict[str, Any] | None:
+    lines = [normalize_ocr_text(line) for line in (plain_text or "").splitlines()]
+    lines = [line for line in lines if line]
+    if not lines:
+        return None
+
+    # Work from the end of the document: signature blocks are normally after the body.
+    tail = lines[-40:]
+    title_indexes = [index for index, line in enumerate(tail) if _is_signature_title_anchor_line(line)]
+    if not title_indexes:
+        return None
+
+    best = None
+    for title_index in title_indexes:
+        # OCR can interleave the left "Noi nhan" column between the signing title
+        # and the handwritten/signature name, so keep a wider but still tail-only window.
+        window = tail[title_index + 1:title_index + 30]
+        title_evidence = [
+            line
+            for line in tail[max(0, title_index - 1):title_index + 3]
+            if _is_signature_title_anchor_line(line) and not _has_org_word(line)
+        ]
+        for line in window:
+            if _is_recipient_context_line(line) or _is_metadata_line(line) or _has_org_word(line):
+                continue
+            if not _looks_like_person_name(line):
+                continue
+            best = {
+                "value": line.strip(" :-,.;\"'“”‘’()[]{}"),
+                "confidence": 0.82,
+                "evidence": title_evidence + [line],
+                "source": "signature_text_block",
+                "status": "found",
+                "alternatives": [],
+            }
+    return best
 
 
 def extract_digital_signature_metadata(lines: List[Dict[str, Any]]) -> Dict[str, str]:
@@ -337,7 +409,7 @@ def extract_signer(ocr_layout: Dict[str, Any], plain_text: str = "") -> Dict[str
         x = _line_center_x(line)
         nearby_before = page_lines[max(0, index - 6):index]
         context_lines = nearby_before + [line]
-        title_lines = [_line_text(item) for item in nearby_before if _has_signing_title(_line_text(item))]
+        title_lines = [_line_text(item) for item in nearby_before if _is_signature_title_anchor_line(_line_text(item))]
         anchor = _signature_anchor_for_candidate(line, signature_anchors, page_width, page_height)
         if anchor and _line_text(anchor) not in title_lines:
             title_lines.append(_line_text(anchor))
@@ -357,7 +429,7 @@ def extract_signer(ocr_layout: Dict[str, Any], plain_text: str = "") -> Dict[str
             _line_text(item)
             for item in nearby_before[-5:]
             if (
-                _has_signing_title(_line_text(item))
+                _is_signature_title_anchor_line(_line_text(item))
                 and not _is_metadata_line(_line_text(item))
                 and not _is_recipient_context_line(_line_text(item))
                 and not _has_org_word(_line_text(item))
@@ -393,10 +465,24 @@ def extract_signer(ocr_layout: Dict[str, Any], plain_text: str = "") -> Dict[str
         )
 
     if not candidates:
+        fallback = _extract_signer_from_text_block(plain_text)
+        if fallback:
+            return fallback
+        layout_text = "\n".join(_line_text(line) for line in page_lines)
+        fallback = _extract_signer_from_text_block(layout_text)
+        if fallback:
+            return fallback
         return {"value": None, "confidence": 0.0, "status": "not_found", "evidence": []}
 
     best = max(candidates, key=lambda item: item["score"])
     if best["score"] < 70:
+        fallback = _extract_signer_from_text_block(plain_text)
+        if fallback:
+            return fallback
+        layout_text = "\n".join(_line_text(line) for line in page_lines)
+        fallback = _extract_signer_from_text_block(layout_text)
+        if fallback:
+            return fallback
         return {
             "value": None,
             "confidence": best["confidence"],

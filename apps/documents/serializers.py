@@ -9,11 +9,17 @@ class DocumentSerializer(serializers.ModelSerializer):
 	project_name = serializers.CharField(source='chat_session.project.name', read_only=True)
 	uploaded_by_email = serializers.CharField(source='uploaded_by.email', read_only=True)
 	file_url = serializers.SerializerMethodField()
+	file_size = serializers.SerializerMethodField()
+	access_source = serializers.SerializerMethodField()
+	is_team_document = serializers.SerializerMethodField()
+	is_shared_with_me = serializers.SerializerMethodField()
+	can_share = serializers.SerializerMethodField()
 
 	class Meta:
 		model = Document
 		fields = [
 			'id', 'chat_session', 'chat_session_title', 'project_id', 'project_name', 'title', 'file', 'file_url',
+			'file_size', 'access_source', 'is_team_document', 'is_shared_with_me', 'can_share',
 			'file_type', 'extracted_text', 'summary', 'ocr_layout', 'extracted_fields', 'index_status',
 			'indexed_chunks', 'index_error', 'indexed_at', 'uploaded_by',
 			'uploaded_by_email', 'is_deleted', 'deleted_at', 'uploaded_at', 'updated_at'
@@ -32,6 +38,49 @@ class DocumentSerializer(serializers.ModelSerializer):
 		if request is not None:
 			return request.build_absolute_uri(url)
 		return url
+
+	def get_file_size(self, obj):
+		try:
+			return obj.file.size if obj.file else 0
+		except Exception:
+			return 0
+
+	def _request_user(self):
+		request = self.context.get('request')
+		return getattr(request, 'user', None)
+
+	def get_is_team_document(self, obj):
+		try:
+			return obj.team_links.exists()
+		except Exception:
+			return False
+
+	def get_is_shared_with_me(self, obj):
+		user = self._request_user()
+		if not user or not user.is_authenticated:
+			return False
+		try:
+			return obj.user_shares.filter(shared_with=user).exists() and obj.uploaded_by_id != user.id
+		except Exception:
+			return False
+
+	def get_access_source(self, obj):
+		chat_session_id = self.context.get('chat_session_id')
+		if chat_session_id and obj.chat_session_id != int(chat_session_id):
+			return 'team_attachment'
+		if self.get_is_shared_with_me(obj):
+			return 'shared_with_me'
+		if self.get_is_team_document(obj):
+			return 'team'
+		return 'owned'
+
+	def get_can_share(self, obj):
+		user = self._request_user()
+		if not user or not user.is_authenticated:
+			return False
+		if self.get_is_team_document(obj):
+			return False
+		return obj.uploaded_by_id == user.id or obj.chat_session.user_id == user.id or user.is_staff
 
 
 class DocumentUploadSerializer(serializers.ModelSerializer):

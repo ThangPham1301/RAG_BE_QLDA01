@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import logging
+import re
+import unicodedata
 from typing import List
 from decouple import config
 try:
@@ -119,6 +121,202 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> List[st
             break
         start = max(start + 1, end - overlap)  # Ensure forward progress
     return chunks
+
+
+def _fold_text(text: str) -> str:
+    text = unicodedata.normalize("NFD", text or "").lower()
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+    return text.replace("đ", "d")
+
+
+def _is_numbered_item(line: str) -> bool:
+    return bool(re.match(r"^\s*(?:\d+|[ivxlcdm]+)\s*[\.\)]\s+", _fold_text(line)))
+
+
+def _is_signature_title(line: str) -> bool:
+    folded = _fold_text(line)
+    return any(
+        marker in folded
+        for marker in [
+            "kt.",
+            "tm.",
+            "tl.",
+            "tuq.",
+            "pho chu nhiem",
+            "chu nhiem",
+            "bo truong",
+            "thu truong",
+            "chu tich",
+            "giam doc",
+        ]
+    )
+
+
+def _line_section_type(line: str) -> str | None:
+    folded = _fold_text(line).strip()
+    if not folded:
+        return None
+    if "kinh gui" in folded:
+        return "kinh_gui"
+    if folded.startswith("noi nhan") or folded.startswith("noi nhận"):
+        return "noi_nhan"
+    if _is_signature_title(line):
+        return "chu_ky"
+    if _is_numbered_item(line):
+        return "muc_danh_so"
+    if folded.startswith("can cu") or folded.startswith("xet de nghi"):
+        return "can_cu"
+    if folded.startswith("van phong") and "thong bao" in folded:
+        return "ket_luan"
+    return None
+
+
+def _clean_lines(text: str) -> List[str]:
+    lines = [re.sub(r"\s+", " ", line).strip() for line in (text or "").splitlines()]
+    return [line for line in lines if line]
+
+
+def _header_context(lines: List[str], max_chars: int = 700) -> str:
+    keep = []
+    for line in lines[:25]:
+        section_type = _line_section_type(line)
+        if section_type in {"kinh_gui", "can_cu", "muc_danh_so"}:
+            break
+        keep.append(line)
+        if sum(len(item) + 1 for item in keep) >= max_chars:
+            break
+    return "\n".join(keep).strip()
+
+
+def _pack_paragraphs(
+    paragraphs: List[str],
+    chunk_type: str,
+    chunk_size: int,
+    context: str = "",
+    context_score: str = "high",
+) -> List[dict]:
+    chunks: List[dict] = []
+    current: List[str] = []
+
+    def flush() -> None:
+        if not current:
+            return
+        body = "\n".join(current).strip()
+        prefix = f"{context}\n\n" if context and context not in body else ""
+        chunks.append(
+            {
+                "chunk": f"{prefix}{body}".strip(),
+                "chunk_type": chunk_type,
+                "context_score": context_score,
+            }
+        )
+        current.clear()
+
+    for paragraph in paragraphs:
+        paragraph = paragraph.strip()
+        if not paragraph:
+            continue
+        candidate = "\n".join(current + [paragraph])
+        extra_context = len(context) + 2 if context and context not in candidate else 0
+        if current and len(candidate) + extra_context > chunk_size:
+            flush()
+        current.append(paragraph)
+
+    flush()
+    return chunks
+
+
+def chunk_administrative_text(text: str, chunk_size: int = 1200) -> List[dict]:
+    """Rule-based chunking for Vietnamese administrative documents.
+
+    Keeps legal/admin anchors together without using an LLM. Falls back to
+    character chunks if the text does not look like an administrative document.
+    """
+    lines = _clean_lines(text)
+    if not lines:
+        return []
+
+    admin_hits = sum(
+        1
+        for line in lines[:80]
+        if _line_section_type(line)
+        or any(
+            marker in _fold_text(line)
+            for marker in [
+                "cong hoa xa hoi",
+                "doc lap",
+                "so:",
+                "ngay",
+                "van phong",
+                "bo ",
+                "uy ban",
+            ]
+        )
+    )
+    if admin_hits < 2:
+        return [
+            {"chunk": chunk, "chunk_type": "Khac", "context_score": "medium"}
+            for chunk in chunk_text(text, chunk_size=chunk_size, overlap=200)
+        ]
+
+    context = _header_context(lines)
+    chunks: List[dict] = []
+    header_lines: List[str] = []
+    current_type = "noi_dung"
+    current_lines: List[str] = []
+
+    def flush_current() -> None:
+        nonlocal current_lines
+        if not current_lines:
+            return
+        chunks.extend(_pack_paragraphs(current_lines, current_type, chunk_size, context=context))
+        current_lines = []
+
+    in_body = False
+    for line in lines:
+        section_type = _line_section_type(line)
+
+        if not in_body:
+            if section_type in {"kinh_gui", "can_cu", "muc_danh_so"}:
+                in_body = True
+                if header_lines:
+                    chunks.extend(_pack_paragraphs(header_lines, "header", chunk_size, context_score="high"))
+                header_lines = []
+                current_type = section_type
+                current_lines = [line]
+                continue
+            header_lines.append(line)
+            continue
+
+        if section_type in {"kinh_gui", "can_cu", "noi_nhan", "chu_ky", "ket_luan"}:
+            if current_type == section_type and section_type in {"noi_nhan", "chu_ky"}:
+                current_lines.append(line)
+                continue
+            flush_current()
+            current_type = section_type
+            current_lines = [line]
+            continue
+
+        if section_type == "muc_danh_so":
+            flush_current()
+            current_type = "muc_danh_so"
+            current_lines = [line]
+            continue
+
+        current_lines.append(line)
+
+    if header_lines and not chunks:
+        chunks.extend(_pack_paragraphs(header_lines, "header", chunk_size, context_score="medium"))
+    flush_current()
+
+    # Very small documents can produce only one huge chunk; keep a deterministic fallback.
+    normalized_chunks = [item for item in chunks if item.get("chunk", "").strip()]
+    if not normalized_chunks:
+        return [
+            {"chunk": chunk, "chunk_type": "Khac", "context_score": "medium"}
+            for chunk in chunk_text(text, chunk_size=chunk_size, overlap=200)
+        ]
+    return normalized_chunks
 
 
 def extract_text_from_docx(path: str) -> str:

@@ -1,5 +1,7 @@
 import logging
 import requests
+import re
+from urllib.parse import urlencode, urlparse
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 
@@ -15,6 +17,7 @@ from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
 from django.shortcuts import redirect
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
 from django_ratelimit.decorators import ratelimit
 from cloudinary import uploader
@@ -145,9 +148,19 @@ def email_verification_redirect_view(request):
     Redirects users to the frontend verification page with the same token.
     """
     token = request.GET.get('token', '')
-    redirect_url = f"{get_frontend_url()}/verify-email"
-    if token:
-        redirect_url = f"{redirect_url}?token={token}"
+    frontend_url = get_frontend_url()
+    redirect_url = f"{frontend_url}/verify-email"
+    if token and re.fullmatch(r'[-_A-Za-z0-9]{1,255}', token):
+        verified_token = EmailVerificationToken.objects.filter(
+            token=token,
+            is_used=False,
+            expires_at__gt=timezone.now()
+        ).values_list('token', flat=True).first()
+        if verified_token:
+            redirect_url = f"{redirect_url}?{urlencode({'token': verified_token})}"
+    allowed_host = urlparse(frontend_url).netloc
+    if not url_has_allowed_host_and_scheme(redirect_url, {allowed_host}, require_https=urlparse(frontend_url).scheme == 'https'):
+        redirect_url = f"{frontend_url}/verify-email"
     return redirect(redirect_url)
 
 

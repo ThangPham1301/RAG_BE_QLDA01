@@ -11,8 +11,8 @@ from apps.chatbot.chroma_service import ChromaService
 from .admin_doc_extractor import extract_administrative_fields
 from .models import Document
 from .ocr_layout_service import OCRLayoutService
-from .parser import chunk_text, extract_text_from_docx, extract_text_from_pdf, extract_text_from_image
-from .text_normalizer import normalize_ocr_text
+from .parser import chunk_administrative_text, extract_text_from_docx, extract_text_from_pdf, extract_text_from_image
+from .text_normalizer import layout_to_text, normalize_ocr_text
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +98,14 @@ def populate_document_extracted_text(document: Document) -> int:
 			)
 			ocr_layout = {}
 
+	layout_text = layout_to_text(ocr_layout or {})
+	if layout_text and len(layout_text) >= int(config('OCR_LAYOUT_TEXT_MIN_CHARS', default=200)):
+		logger.info(
+			'[populate_document_extracted_text] Using OCR layout text as extracted_text source: %s chars',
+			len(layout_text),
+		)
+		text = layout_text
+
 	extracted_fields = {}
 	try:
 		extracted_fields = extract_administrative_fields(ocr_layout or {}, plain_text=text)
@@ -175,11 +183,11 @@ def index_document_to_chroma(document: Document, chunk_size: int = 1000, overlap
 				)
 				return 0
 		else:
-			logger.info(f'[index_document_to_chroma] Calling naive chunk_text with chunk_size={chunk_size}')
-			chunks = chunk_text(text=text, chunk_size=chunk_size, overlap=overlap)
-			logger.info(f'[index_document_to_chroma] Naive chunks created: {len(chunks)}')
+			logger.info(f'[index_document_to_chroma] Calling rule-based administrative chunking with chunk_size={chunk_size}')
+			intelligent_chunks = chunk_administrative_text(text=text, chunk_size=chunk_size)
+			logger.info(f'[index_document_to_chroma] Rule-based chunks created: {len(intelligent_chunks)}')
 			
-			if not chunks:
+			if not intelligent_chunks:
 				logger.warning(f'[index_document_to_chroma] No chunks created')
 				Document.objects.filter(pk=document.pk).update(
 					index_status=Document.IndexStatus.FAILED,
@@ -187,8 +195,6 @@ def index_document_to_chroma(document: Document, chunk_size: int = 1000, overlap
 					indexed_chunks=0,
 				)
 				return 0
-			# Chuyển về định dạng chung để code phía dưới xử lý dễ
-			intelligent_chunks = [{"chunk": c, "chunk_type": "None", "context_score": "high"} for c in chunks]
 
 		vector_items = []
 		file_name = Path(str(document.file)).name if document.file else ''
@@ -196,9 +202,9 @@ def index_document_to_chroma(document: Document, chunk_size: int = 1000, overlap
 		enable_structure = config('ENABLE_STRUCTURE_DETECTION', default='True').lower() in ['true', '1', 'yes']
 
 		for index, chunk_data in enumerate(intelligent_chunks):
-			raw_chunk_text = chunk_data.get('chunk', '')
-			chunk_type = chunk_data.get('chunk_type', 'Khác')
-			context_score = chunk_data.get('context_score', 'high')
+			raw_chunk_text = normalize_ocr_text(chunk_data.get('chunk', ''))
+			chunk_type = normalize_ocr_text(str(chunk_data.get('chunk_type', 'Khác')))
+			context_score = normalize_ocr_text(str(chunk_data.get('context_score', 'high')))
 			
 			if not raw_chunk_text.strip():
 				continue
@@ -243,6 +249,7 @@ def index_document_to_chroma(document: Document, chunk_size: int = 1000, overlap
 			# Nối thêm chunk_type và context_score vào cuối chunk text nếu là intelligent chunk
 			if enable_intelligent_chunking and chunk_type != 'None':
 				final_chunk_text += f"\n[Phân loại: {chunk_type} | Độ rõ ràng ngữ cảnh: {context_score}]"
+			final_chunk_text = normalize_ocr_text(final_chunk_text)
 
 			vector_items.append(
 				{

@@ -53,6 +53,14 @@ class ChromaService:
         - chat_session_id (nếu có): search trong toàn bộ session
         - Không filter: search toàn project
         """
+        if document_id is not None:
+            try:
+                from apps.documents.models import Document
+                document = Document.objects.select_related('chat_session').get(id=int(document_id), is_deleted=False)
+                project_id = document.chat_session.project_id
+            except Exception:
+                pass
+
         col = self.get_or_create_collection(project_id)
         q_emb = self.embedding.embed_texts([query])[0]
         query_kwargs = {
@@ -65,7 +73,17 @@ class ChromaService:
         if document_id is not None:
             query_kwargs['where'] = {'document_id': int(document_id)}
         elif chat_session_id is not None:
-            query_kwargs['where'] = {'chat_session_id': int(chat_session_id)}
+            try:
+                from apps.chatbot.models import ChatSession
+                from apps.teams.permissions import accessible_documents_for_session
+                session = ChatSession.objects.get(id=int(chat_session_id), is_deleted=False)
+                document_ids = list(accessible_documents_for_session(session).values_list('id', flat=True))
+                if document_ids:
+                    query_kwargs['where'] = {'document_id': {'$in': [int(doc_id) for doc_id in document_ids]}}
+                else:
+                    query_kwargs['where'] = {'chat_session_id': int(chat_session_id)}
+            except Exception:
+                query_kwargs['where'] = {'chat_session_id': int(chat_session_id)}
 
         try:
             results = col.query(**query_kwargs)

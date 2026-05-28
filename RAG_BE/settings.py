@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'apps.projects',
     'apps.documents',
     'apps.chatbot',
+    'apps.teams',
 ]
 
 MIDDLEWARE = [
