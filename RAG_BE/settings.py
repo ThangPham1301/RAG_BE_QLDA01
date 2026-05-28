@@ -182,6 +182,7 @@ SIMPLE_JWT = {
 
 # CORS Configuration
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:5173,http://localhost:3000', cast=lambda v: [s.strip() for s in v.split(',')])
+FRONTEND_URL = config('FRONTEND_URL', default=CORS_ALLOWED_ORIGINS[0])
 CORS_ALLOW_CREDENTIALS = True
 
 # ============================================================================
