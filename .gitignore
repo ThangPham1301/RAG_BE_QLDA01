@@ -1,8 +1,9 @@
-# Python cache full
+# Python cache
 __pycache__/
+**/__pycache__/
 *.py[cod]
-*.pyc
 *$py.class
+<<<<<<< HEAD
 __pycache__/
 *.pyc
 *.pyo
@@ -10,28 +11,41 @@ __pycache__/
 
 .env
 # Virtual env (đã đúng)
+
+
 .venv/
 venv/
+env/
+ENV/
+ocr_service/.venv/
 
-# Environment
+# Environment files
 .env
+.env.*
 !.env.example
 
 # Logs
 *.log
 logs/
 
-# Database
+# Local databases
 *.sqlite3
+*.sqlite
+*.db
 
-# Chroma vector DB
+# Vector databases and generated storage
 chroma_db/
-
-# Media uploads
+chroma_db_backup_*/
 media/
+staticfiles/
+
+# Build output
+build/
+dist/
 
 # IDE
 .vscode/
+.idea/
 
 # OS
 .DS_Store
