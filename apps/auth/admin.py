@@ -10,16 +10,16 @@ class UserAdmin(BaseUserAdmin):
     """Admin interface for User model."""
     
     list_display = (
-        'email', 'get_full_name', 'is_email_verified', 'is_active',
+        'email', 'get_full_name', 'is_email_verified', 'two_factor_enabled', 'is_active',
         'last_login_at', 'created_at'
     )
-    list_filter = ('is_email_verified', 'is_active', 'created_at')
+    list_filter = ('is_email_verified', 'two_factor_enabled', 'is_active', 'created_at')
     search_fields = ('email', 'first_name', 'last_name', 'google_id')
     ordering = ('-created_at',)
     
     fieldsets = BaseUserAdmin.fieldsets + (
         ('Email & Verification', {
-            'fields': ('is_email_verified',)
+            'fields': ('is_email_verified', 'two_factor_enabled')
         }),
         ('OAuth', {
             'fields': ('google_id',),

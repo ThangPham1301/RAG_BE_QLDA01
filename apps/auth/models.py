@@ -14,6 +14,7 @@ class User(AbstractUser):
     email = models.EmailField(unique=True, db_index=True)
     phone_number = models.CharField(max_length=20, blank=True, null=True)
     is_email_verified = models.BooleanField(default=False)
+    two_factor_enabled = models.BooleanField(default=False)
     
     # OAuth fields
     google_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
