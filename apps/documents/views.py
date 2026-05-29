@@ -11,6 +11,7 @@ from .models import Document
 from .serializers import DocumentSerializer, DocumentUploadSerializer
 from apps.teams.permissions import accessible_documents_for_user, user_can_access_document
 from apps.teams.serializers import CreateDocumentShareSerializer, DocumentShareSerializer
+from apps.realtime.events import send_document_status, send_to_user
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         try:
             document.index_status = Document.IndexStatus.INDEXING
             document.save(update_fields=['index_status'])
+            send_document_status(document, Document.IndexStatus.INDEXING)
             
             # Import here to avoid circular imports
             from .services import populate_document_extracted_text, index_document_to_chroma
@@ -110,6 +112,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
             document.indexed_chunks = indexed_chunks
             document.indexed_at = timezone.now()
             document.save(update_fields=['index_status', 'indexed_chunks', 'indexed_at'])
+            send_document_status(document, Document.IndexStatus.INDEXED)
             logger.info(f'[_schedule_indexing] Completed successfully for doc_id={document.id}, chunks={indexed_chunks}')
             
         except Exception as e:
@@ -117,6 +120,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
             document.index_status = Document.IndexStatus.FAILED
             document.index_error = str(e)[:500]  # Truncate to 500 chars
             document.save(update_fields=['index_status', 'index_error'])
+            send_document_status(document, Document.IndexStatus.FAILED)
             logger.error(f"[_schedule_indexing] Document marked as FAILED with error: {document.index_error}")
 
     @action(detail=True, methods=['post'])
@@ -274,4 +278,10 @@ class DocumentViewSet(viewsets.ModelViewSet):
         serializer = CreateDocumentShareSerializer(data=request.data, context={'request': request, 'document': doc})
         serializer.is_valid(raise_exception=True)
         share = serializer.save()
+        send_to_user(share.shared_with_id, 'document.shared', {
+            'document_id': doc.id,
+            'title': doc.title,
+            'share_id': share.id,
+            'shared_by': request.user.email,
+        })
         return Response(DocumentShareSerializer(share).data, status=status.HTTP_201_CREATED)

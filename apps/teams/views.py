@@ -19,6 +19,7 @@ from .serializers import (
     TeamInviteSerializer,
     TeamSerializer,
 )
+from apps.realtime.events import send_document_status, send_notification, send_team_event, send_to_user
 
 
 class TeamViewSet(viewsets.ModelViewSet):
@@ -44,6 +45,9 @@ class TeamViewSet(viewsets.ModelViewSet):
         serializer = TeamInviteSerializer(data=request.data, context={'request': request, 'team': team})
         serializer.is_valid(raise_exception=True)
         result = serializer.save()
+        for invitation in result['created']:
+            if invitation.invited_user_id:
+                send_to_user(invitation.invited_user_id, 'team.invitation.created', TeamInvitationSerializer(invitation).data)
         return Response({
             'created': TeamInvitationSerializer(result['created'], many=True).data,
             'skipped': result['skipped'],
@@ -101,6 +105,12 @@ class TeamViewSet(viewsets.ModelViewSet):
                 continue
             doc = upload_serializer.save()
             TeamDocument.objects.get_or_create(team=team, document=doc, defaults={'uploaded_by': request.user})
+            send_team_event(team, 'team.document.created', {
+                'document_id': doc.id,
+                'title': doc.title,
+                'index_status': doc.index_status,
+                'uploaded_by': request.user.email,
+            })
             indexer._schedule_indexing(doc)
             doc.refresh_from_db()
             created_docs.append(doc)
@@ -138,6 +148,20 @@ class TeamInvitationViewSet(viewsets.ReadOnlyModelViewSet):
         invitation.invited_user = request.user
         invitation.responded_at = timezone.now()
         invitation.save(update_fields=['status', 'invited_user', 'responded_at'])
+        owner_notification = InAppNotification.objects.create(
+            user=invitation.invited_by,
+            title='Team invitation response',
+            message=f'{request.user.email} {target_status.lower()} your invitation to {invitation.team.name}.',
+            data={'type': 'team_invitation_response', 'invitation_id': str(invitation.id), 'team_id': invitation.team_id, 'status': target_status},
+        )
+        send_notification(owner_notification)
+        send_to_user(invitation.invited_by_id, 'team.invitation.responded', TeamInvitationSerializer(invitation).data)
+        send_to_user(request.user.id, 'team.invitation.updated', TeamInvitationSerializer(invitation).data)
+        if target_status == TeamInvitation.Status.ACCEPTED:
+            send_team_event(invitation.team, 'team.membership.created', {
+                'user_id': str(request.user.id),
+                'email': request.user.email,
+            })
         return Response(TeamInvitationSerializer(invitation).data)
 
     @action(detail=True, methods=['post'])
@@ -174,6 +198,10 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         notification = self.get_object()
         notification.is_read = True
         notification.save(update_fields=['is_read'])
+        send_to_user(request.user.id, 'notification.updated', {
+            'id': notification.id,
+            'is_read': True,
+        })
         return Response({'status': 'ok'})
 
 
@@ -184,6 +212,11 @@ class ChatDocumentAttachmentView(APIView):
         serializer = ChatAttachDocumentsSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         result = serializer.save()
+        for item in result['created']:
+            send_to_user(request.user.id, 'chat.document.attached', {
+                'chat_session_id': item.chat_session_id,
+                'document_id': item.document_id,
+            })
         return Response({
             'attached': [item.document_id for item in result['created']],
             'skipped': result['skipped'],

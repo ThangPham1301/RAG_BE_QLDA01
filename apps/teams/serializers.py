@@ -17,6 +17,7 @@ from .models import (
     TeamMembership,
 )
 from .permissions import user_can_access_document, user_is_team_member
+from apps.realtime.events import send_notification
 
 
 User = get_user_model()
@@ -99,12 +100,13 @@ class TeamInviteSerializer(serializers.Serializer):
                 created.append(invitation)
 
                 if invited_user:
-                    InAppNotification.objects.create(
+                    notification = InAppNotification.objects.create(
                         user=invited_user,
                         title='Team invitation',
                         message=f'{request.user.email} invited you to join {team.name}.',
                         data={'type': 'team_invitation', 'invitation_id': str(invitation.id), 'team_id': team.id},
                     )
+                    send_notification(notification)
 
                 send_mail(
                     subject=f'Invitation to join {team.name}',
@@ -230,12 +232,13 @@ class CreateDocumentShareSerializer(serializers.Serializer):
             shared_with=shared_with,
             can_download=True,
         )
-        InAppNotification.objects.create(
+        notification = InAppNotification.objects.create(
             user=shared_with,
             title='Document shared with you',
             message=f'{request.user.email} shared "{document.title}" with you.',
             data={'type': 'document_share', 'document_id': document.id, 'share_id': share.id},
         )
+        send_notification(notification)
         send_mail(
             subject=f'Document shared: {document.title}',
             message=f'{request.user.email} shared "{document.title}" with you. Open the Library to view or download it.',

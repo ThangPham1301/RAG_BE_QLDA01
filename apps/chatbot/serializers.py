@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import ChatMessage, ChatSession, ChatFeedback, MessageContext
+from .models import ChatMessage, ChatSession, ChatFeedback, MessageContext, ConversationEvaluation
 
 
 class MessageContextSerializer(serializers.ModelSerializer):
@@ -27,6 +27,7 @@ class ChatMessageSerializer(serializers.ModelSerializer):
 class ChatSessionSerializer(serializers.ModelSerializer):
 	message_count = serializers.SerializerMethodField()
 	documents_count = serializers.SerializerMethodField()
+	evaluation_id = serializers.SerializerMethodField()
 	project_name = serializers.CharField(source='project.name', read_only=True)
 	user_email = serializers.CharField(source='user.email', read_only=True)
 
@@ -34,10 +35,10 @@ class ChatSessionSerializer(serializers.ModelSerializer):
 		model = ChatSession
 		fields = [
 			'id', 'project', 'project_name', 'user', 'user_email',
-			'title', 'description', 'message_count', 'documents_count', 'created_at',
+			'title', 'description', 'message_count', 'documents_count', 'evaluation_id', 'created_at',
 			'updated_at', 'last_message_at', 'is_archived'
 		]
-		read_only_fields = ['id', 'user', 'user_email', 'message_count', 'documents_count', 'created_at', 'updated_at', 'project_name']
+		read_only_fields = ['id', 'user', 'user_email', 'message_count', 'documents_count', 'evaluation_id', 'created_at', 'updated_at', 'project_name']
 
 	def get_message_count(self, obj):
 		return obj.messages.count()
@@ -48,6 +49,12 @@ class ChatSessionSerializer(serializers.ModelSerializer):
 			return accessible_documents_for_session(obj).count()
 		except Exception:
 			return obj.documents.filter(is_deleted=False).count()
+
+	def get_evaluation_id(self, obj):
+		try:
+			return obj.evaluation.id
+		except ConversationEvaluation.DoesNotExist:
+			return None
 
 	def create(self, validated_data):
 		validated_data['user'] = self.context['request'].user
@@ -93,3 +100,31 @@ class ChatFeedbackSerializer(serializers.ModelSerializer):
 	def create(self, validated_data):
 		validated_data['user'] = self.context['request'].user
 		return super().create(validated_data)
+
+
+class ConversationEvaluationSerializer(serializers.ModelSerializer):
+	user_email = serializers.CharField(source='user.email', read_only=True)
+	chat_title = serializers.CharField(source='chat_session.title', read_only=True)
+	project_name = serializers.CharField(source='chat_session.project.name', read_only=True)
+	pinned_by_email = serializers.CharField(source='pinned_by.email', read_only=True)
+
+	class Meta:
+		model = ConversationEvaluation
+		fields = [
+			'id', 'chat_session', 'chat_title', 'project_name', 'user', 'user_email',
+			'rating', 'accuracy_rating', 'usefulness_rating', 'grounding_rating', 'comment',
+			'is_pinned', 'pinned_at', 'pinned_by', 'pinned_by_email', 'created_at', 'updated_at',
+		]
+		read_only_fields = [
+			'id', 'user', 'user_email', 'chat_title', 'project_name',
+			'is_pinned', 'pinned_at', 'pinned_by', 'pinned_by_email', 'created_at', 'updated_at',
+		]
+
+	def validate(self, attrs):
+		request = self.context['request']
+		chat_session = attrs.get('chat_session') or getattr(self.instance, 'chat_session', None)
+		if not chat_session:
+			raise serializers.ValidationError({'chat_session': 'This field is required.'})
+		if chat_session.user_id != request.user.id:
+			raise serializers.ValidationError({'chat_session': 'Chat session is not available.'})
+		return attrs

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import ChatSession, ChatMessage, ChatFeedback
+from .models import ChatSession, ChatMessage, ChatFeedback, ConversationEvaluation
 
 
 @admin.register(ChatSession)
@@ -24,3 +24,11 @@ class ChatFeedbackAdmin(admin.ModelAdmin):
     list_filter = ['feedback_type', 'created_at']
     search_fields = ['comment', 'user__email']
     readonly_fields = ['created_at']
+
+
+@admin.register(ConversationEvaluation)
+class ConversationEvaluationAdmin(admin.ModelAdmin):
+    list_display = ['chat_session', 'user', 'rating', 'is_pinned', 'updated_at']
+    list_filter = ['rating', 'is_pinned', 'created_at', 'updated_at']
+    search_fields = ['comment', 'user__email', 'chat_session__title', 'chat_session__project__name']
+    readonly_fields = ['created_at', 'updated_at', 'pinned_at']

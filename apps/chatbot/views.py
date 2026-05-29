@@ -4,17 +4,25 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from rest_framework import viewsets, status, permissions
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from django.db.models import Avg, Count
 from django.utils import timezone
-from .models import ChatSession, ChatMessage, ChatFeedback
+from .models import ChatSession, ChatMessage, ChatFeedback, ConversationEvaluation
 from .serializers import (
     ChatSessionSerializer, ChatSessionDetailSerializer,
-    ChatMessageSerializer, ChatMessageCreateSerializer, ChatFeedbackSerializer
+    ChatMessageSerializer, ChatMessageCreateSerializer, ChatFeedbackSerializer,
+    ConversationEvaluationSerializer
 )
+from apps.realtime.events import send_to_admins
 
 logger = logging.getLogger(__name__)
+
+
+def user_is_admin(user):
+    return bool(user and user.is_authenticated and (user.is_staff or user.is_superuser))
 
 
 class ChatSessionViewSet(viewsets.ModelViewSet):
@@ -250,3 +258,126 @@ class ChatFeedbackViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+
+class ConversationEvaluationViewSet(viewsets.ModelViewSet):
+    """Conversation-level evaluation. One official evaluation per chat session."""
+    serializer_class = ConversationEvaluationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = ConversationEvaluation.objects.select_related(
+            'chat_session',
+            'chat_session__project',
+            'user',
+            'pinned_by',
+        )
+        if not user_is_admin(self.request.user):
+            queryset = queryset.filter(user=self.request.user)
+
+        chat_session_id = self.request.query_params.get('chat_session')
+        if chat_session_id:
+            queryset = queryset.filter(chat_session_id=chat_session_id)
+
+        rating = self.request.query_params.get('rating')
+        if rating:
+            queryset = queryset.filter(rating=rating)
+
+        pinned = self.request.query_params.get('pinned')
+        if pinned in {'true', 'false'}:
+            queryset = queryset.filter(is_pinned=(pinned == 'true'))
+
+        return queryset.order_by('-is_pinned', '-updated_at')
+
+    def create(self, request, *args, **kwargs):
+        chat_session_id = request.data.get('chat_session')
+        if not chat_session_id:
+            return Response({'chat_session': 'This field is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        chat_session = ChatSession.objects.filter(
+            id=chat_session_id,
+            user=request.user,
+            is_deleted=False,
+        ).first()
+        if not chat_session:
+            return Response({'chat_session': 'Chat session is not available.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        existing = ConversationEvaluation.objects.filter(chat_session=chat_session, user=request.user).first()
+        if existing:
+            update_serializer = self.get_serializer(existing, data=request.data, partial=True)
+            update_serializer.is_valid(raise_exception=True)
+            self._save_user_update(update_serializer)
+            send_to_admins('evaluation.updated', update_serializer.data)
+            return Response(update_serializer.data, status=status.HTTP_200_OK)
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(user=request.user)
+        send_to_admins('evaluation.created', serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def perform_update(self, serializer):
+        if serializer.instance.user_id != self.request.user.id:
+            raise PermissionDenied('Only the owner can edit this evaluation.')
+        self._save_user_update(serializer)
+        send_to_admins('evaluation.updated', serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        if user_is_admin(request.user):
+            return Response({'detail': 'Admin cannot delete user evaluations.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().destroy(request, *args, **kwargs)
+
+    def _save_user_update(self, serializer):
+        instance = serializer.instance
+        if instance and instance.is_pinned:
+            serializer.save(
+                user=self.request.user,
+                is_pinned=False,
+                pinned_at=None,
+                pinned_by=None,
+            )
+        else:
+            serializer.save(user=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def pin(self, request, pk=None):
+        if not user_is_admin(request.user):
+            return Response({'detail': 'Admin role is required.'}, status=status.HTTP_403_FORBIDDEN)
+        evaluation = self.get_object()
+        evaluation.is_pinned = True
+        evaluation.pinned_at = timezone.now()
+        evaluation.pinned_by = request.user
+        evaluation.save(update_fields=['is_pinned', 'pinned_at', 'pinned_by', 'updated_at'])
+        data = self.get_serializer(evaluation).data
+        send_to_admins('evaluation.pinned', data)
+        return Response(data)
+
+    @action(detail=True, methods=['post'])
+    def unpin(self, request, pk=None):
+        if not user_is_admin(request.user):
+            return Response({'detail': 'Admin role is required.'}, status=status.HTTP_403_FORBIDDEN)
+        evaluation = self.get_object()
+        evaluation.is_pinned = False
+        evaluation.pinned_at = None
+        evaluation.pinned_by = None
+        evaluation.save(update_fields=['is_pinned', 'pinned_at', 'pinned_by', 'updated_at'])
+        data = self.get_serializer(evaluation).data
+        send_to_admins('evaluation.unpinned', data)
+        return Response(data)
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        if not user_is_admin(request.user):
+            return Response({'detail': 'Admin role is required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        queryset = self.get_queryset()
+        distribution = {
+            row['rating']: row['total']
+            for row in queryset.values('rating').annotate(total=Count('id')).order_by('rating')
+        }
+        return Response({
+            'total': queryset.count(),
+            'pinned': queryset.filter(is_pinned=True).count(),
+            'average_rating': round(queryset.aggregate(value=Avg('rating'))['value'] or 0, 2),
+            'distribution': {str(score): distribution.get(score, 0) for score in range(1, 6)},
+        })
