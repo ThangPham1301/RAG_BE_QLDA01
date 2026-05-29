@@ -8,7 +8,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from django.db.models import Avg, Count
+from django.db.models import Avg, Count, Q
 from django.utils import timezone
 from .models import ChatSession, ChatMessage, ChatFeedback, ConversationEvaluation
 from .serializers import (
@@ -16,7 +16,7 @@ from .serializers import (
     ChatMessageSerializer, ChatMessageCreateSerializer, ChatFeedbackSerializer,
     ConversationEvaluationSerializer
 )
-from apps.realtime.events import send_to_admins
+from apps.realtime.events import send_notification, send_to_admins
 
 logger = logging.getLogger(__name__)
 
@@ -265,6 +265,34 @@ class ConversationEvaluationViewSet(viewsets.ModelViewSet):
     serializer_class = ConversationEvaluationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def _send_admin_evaluation_event(self, event_type, data):
+        send_to_admins(event_type, data)
+
+        from django.contrib.auth import get_user_model
+        from apps.teams.models import InAppNotification
+
+        User = get_user_model()
+        title = 'New chat evaluation' if event_type == 'evaluation.created' else 'Chat evaluation updated'
+        chat_label = data.get('chat_title') or f"session #{data.get('chat_session')}"
+        message = (
+            f"{data.get('user_email') or 'A user'} rated "
+            f"{chat_label} "
+            f"{data.get('rating')}/5."
+        )
+        for admin in User.objects.filter(is_active=True).filter(Q(is_staff=True) | Q(is_superuser=True)):
+            notification = InAppNotification.objects.create(
+                user=admin,
+                title=title,
+                message=message,
+                data={
+                    'type': event_type,
+                    'evaluation_id': data.get('id'),
+                    'chat_session_id': data.get('chat_session'),
+                    'rating': data.get('rating'),
+                },
+            )
+            send_notification(notification)
+
     def get_queryset(self):
         queryset = ConversationEvaluation.objects.select_related(
             'chat_session',
@@ -307,20 +335,20 @@ class ConversationEvaluationViewSet(viewsets.ModelViewSet):
             update_serializer = self.get_serializer(existing, data=request.data, partial=True)
             update_serializer.is_valid(raise_exception=True)
             self._save_user_update(update_serializer)
-            send_to_admins('evaluation.updated', update_serializer.data)
+            self._send_admin_evaluation_event('evaluation.updated', update_serializer.data)
             return Response(update_serializer.data, status=status.HTTP_200_OK)
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save(user=request.user)
-        send_to_admins('evaluation.created', serializer.data)
+        self._send_admin_evaluation_event('evaluation.created', serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def perform_update(self, serializer):
         if serializer.instance.user_id != self.request.user.id:
             raise PermissionDenied('Only the owner can edit this evaluation.')
         self._save_user_update(serializer)
-        send_to_admins('evaluation.updated', serializer.data)
+        self._send_admin_evaluation_event('evaluation.updated', serializer.data)
 
     def destroy(self, request, *args, **kwargs):
         if user_is_admin(request.user):

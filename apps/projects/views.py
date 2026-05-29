@@ -32,7 +32,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
     parser_classes = (JSONParser, MultiPartParser, FormParser)
 
     def get_queryset(self):
-        return Project.objects.filter(owner=self.request.user).order_by('-created_at')
+        return Project.objects.filter(owner=self.request.user).exclude(name__startswith='Team Workspace - ').order_by('-created_at')
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)

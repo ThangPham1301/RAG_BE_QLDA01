@@ -15,6 +15,7 @@ from .chroma_service import ChromaService
 from .rag_service import RAGService
 from .prompt_service import get_default_instruction
 from apps.documents.models import Document
+from apps.realtime.events import send_to_admins
 
 logger = logging.getLogger(__name__)
 
@@ -334,6 +335,13 @@ class ChatService:
 			role=ChatMessage.Role.USER,
 			content=question
 		)
+		send_to_admins('dashboard.query.created', {
+			'message_id': user_msg.id,
+			'chat_session_id': session.id,
+			'project_id': project_id,
+			'user_id': session.user_id,
+			'created_at': user_msg.created_at.isoformat(),
+		})
 		logger.info(f'[ChatService] User message saved: id={user_msg.id}')
 		
 		# [3] Intent routing + generation
@@ -580,6 +588,13 @@ class ChatService:
 			role=ChatMessage.Role.USER,
 			content=question,
 		)
+		send_to_admins('dashboard.query.created', {
+			'message_id': user_msg.id,
+			'chat_session_id': session.id,
+			'project_id': project_id,
+			'user_id': session.user_id,
+			'created_at': user_msg.created_at.isoformat(),
+		})
 		logger.info('[ChatService.stream] User message saved: id=%s', user_msg.id)
 
 		# Yield event báo user message đã lưu (FE có thể hiện message ngay)
