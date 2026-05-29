@@ -18,13 +18,21 @@ from .models import Project
 from .serializers import ProjectSerializer
 
 
+def _user_is_admin(user):
+    return bool(user and user.is_authenticated and (user.is_staff or user.is_superuser))
+
+
+def _admin_required_response():
+    return Response({'detail': 'Admin role is required.'}, status=status.HTTP_403_FORBIDDEN)
+
+
 class ProjectViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectSerializer
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = (JSONParser, MultiPartParser, FormParser)
 
     def get_queryset(self):
-        return Project.objects.filter(owner=self.request.user).order_by('-created_at')
+        return Project.objects.filter(owner=self.request.user).exclude(name__startswith='Team Workspace - ').order_by('-created_at')
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
@@ -333,6 +341,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def statistics(self, request):
         """Dashboard + statistics data with real metrics and time-series."""
+        if not _user_is_admin(request.user):
+            return _admin_required_response()
         payload, error_response = self._build_statistics_payload(request)
         if error_response:
             return error_response
@@ -341,11 +351,15 @@ class ProjectViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='statistics/export')
     def statistics_export_stable(self, request):
         """Export statistics through the ProjectViewSet router."""
+        if not _user_is_admin(request.user):
+            return _admin_required_response()
         return build_statistics_export_response(request)
 
     @action(detail=False, methods=['get'], url_path='statistics-export')
     def statistics_export(self, request):
         """Export statistics report as CSV, Excel-compatible HTML, PDF, or JSON."""
+        if not _user_is_admin(request.user):
+            return _admin_required_response()
         export_format = request.query_params.get('format', 'csv').lower()
         if export_format not in {'csv', 'xls', 'excel', 'pdf'}:
             return Response(
@@ -518,6 +532,8 @@ def statistics_export_view(request):
     if auth_result is None:
         return HttpResponse('Authentication credentials were not provided.', status=401)
     request.user, request.auth = auth_result
+    if not _user_is_admin(request.user):
+        return HttpResponse('Admin role is required.', status=403)
     return build_statistics_export_response(request)
 
 

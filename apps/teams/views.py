@@ -19,6 +19,7 @@ from .serializers import (
     TeamInviteSerializer,
     TeamSerializer,
 )
+from apps.realtime.events import send_document_status, send_notification, send_team_event, send_to_admins, send_to_user
 
 
 class TeamViewSet(viewsets.ModelViewSet):
@@ -29,12 +30,39 @@ class TeamViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return Team.objects.filter(memberships__user=self.request.user).distinct().order_by('-created_at')
 
+    def list(self, request, *args, **kwargs):
+        from apps.chatbot.models import ChatSession
+        ChatSession.objects.filter(
+            user=request.user,
+            title__startswith='Team Documents - ',
+            project__name__startswith='Team Workspace - ',
+            is_deleted=False,
+        ).update(is_deleted=True, deleted_at=timezone.now())
+        return super().list(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         team = serializer.save(owner=self.request.user)
         TeamMembership.objects.create(team=team, user=self.request.user, role=TeamMembership.Role.OWNER)
 
     def _require_owner(self, team):
         return TeamMembership.objects.filter(team=team, user=self.request.user, role=TeamMembership.Role.OWNER).exists()
+
+    def _remove_team_documents_from_user_chats(self, team, user):
+        document_ids = TeamDocument.objects.filter(team=team).values_list('document_id', flat=True)
+        chat_session_ids = list(ChatDocumentAttachment.objects.filter(
+            chat_session__user=user,
+            document_id__in=document_ids,
+        ).values_list('chat_session_id', flat=True).distinct())
+        deleted, _ = ChatDocumentAttachment.objects.filter(
+            chat_session__user=user,
+            document_id__in=document_ids,
+        ).delete()
+        send_to_user(user.id, 'chat.document.detached', {
+            'team_id': team.id,
+            'chat_session_ids': chat_session_ids,
+            'detached_count': deleted,
+        })
+        return deleted
 
     @action(detail=True, methods=['post'])
     def invite(self, request, pk=None):
@@ -44,10 +72,98 @@ class TeamViewSet(viewsets.ModelViewSet):
         serializer = TeamInviteSerializer(data=request.data, context={'request': request, 'team': team})
         serializer.is_valid(raise_exception=True)
         result = serializer.save()
+        for invitation in result['created']:
+            if invitation.invited_user_id:
+                send_to_user(invitation.invited_user_id, 'team.invitation.created', TeamInvitationSerializer(invitation).data)
         return Response({
             'created': TeamInvitationSerializer(result['created'], many=True).data,
             'skipped': result['skipped'],
         }, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def leave(self, request, pk=None):
+        team = self.get_object()
+        membership = TeamMembership.objects.filter(team=team, user=request.user).first()
+        if not membership:
+            return Response({'error': 'You are not a member of this team.'}, status=status.HTTP_404_NOT_FOUND)
+        if membership.role == TeamMembership.Role.OWNER:
+            return Response({'error': 'Team owner cannot leave the team. Transfer ownership or delete the team first.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        detached_count = self._remove_team_documents_from_user_chats(team, request.user)
+        membership.delete()
+        for owner_membership in team.memberships.filter(role=TeamMembership.Role.OWNER).select_related('user'):
+            notification = InAppNotification.objects.create(
+                user=owner_membership.user,
+                title='Member left team',
+                message=f'{request.user.email} left {team.name}. Team documents were removed from their chats.',
+                data={'type': 'team_member_left', 'team_id': team.id, 'user_id': request.user.id},
+            )
+            send_notification(notification)
+        send_team_event(team, 'team.membership.removed', {
+            'team_id': team.id,
+            'user_id': request.user.id,
+            'email': request.user.email,
+            'action': 'left',
+            'detached_count': detached_count,
+        })
+        send_to_user(request.user.id, 'team.membership.removed', {
+            'team_id': team.id,
+            'team_name': team.name,
+            'user_id': request.user.id,
+            'email': request.user.email,
+            'action': 'left',
+            'detached_count': detached_count,
+        })
+        return Response({'status': 'left', 'detached_count': detached_count})
+
+    @action(detail=True, methods=['post'], url_path='kick-member')
+    def kick_member(self, request, pk=None):
+        team = self.get_object()
+        if not self._require_owner(team):
+            return Response({'error': 'Only team owners can kick members.'}, status=status.HTTP_403_FORBIDDEN)
+
+        membership_id = request.data.get('membership_id')
+        user_id = request.data.get('user_id')
+        membership = TeamMembership.objects.filter(team=team)
+        if membership_id:
+            membership = membership.filter(id=membership_id)
+        elif user_id:
+            membership = membership.filter(user_id=user_id)
+        else:
+            return Response({'error': 'membership_id or user_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        membership = membership.select_related('user').first()
+        if not membership:
+            return Response({'error': 'Member not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if membership.role == TeamMembership.Role.OWNER:
+            return Response({'error': 'Team owner cannot be kicked.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        removed_user = membership.user
+        detached_count = self._remove_team_documents_from_user_chats(team, removed_user)
+        membership.delete()
+        notification = InAppNotification.objects.create(
+            user=removed_user,
+            title='Removed from team',
+            message=f'You were removed from {team.name}. Team documents were removed from your chats.',
+            data={'type': 'team_member_kicked', 'team_id': team.id, 'team_name': team.name},
+        )
+        send_notification(notification)
+        send_team_event(team, 'team.membership.removed', {
+            'team_id': team.id,
+            'user_id': removed_user.id,
+            'email': removed_user.email,
+            'action': 'kicked',
+            'detached_count': detached_count,
+        })
+        send_to_user(removed_user.id, 'team.membership.removed', {
+            'team_id': team.id,
+            'team_name': team.name,
+            'user_id': removed_user.id,
+            'email': removed_user.email,
+            'action': 'kicked',
+            'detached_count': detached_count,
+        })
+        return Response({'status': 'kicked', 'user_id': removed_user.id, 'detached_count': detached_count})
 
     @action(detail=True, methods=['get', 'post'], url_path='documents')
     def documents(self, request, pk=None):
@@ -59,6 +175,7 @@ class TeamViewSet(viewsets.ModelViewSet):
             return Response(TeamDocumentSerializer(links, many=True, context={'request': request}).data)
 
         chat_session_id = request.data.get('chat_session_id')
+        hidden_chat_session = None
         if not chat_session_id:
             from apps.chatbot.models import ChatSession
             from apps.projects.models import Project
@@ -81,6 +198,11 @@ class TeamViewSet(viewsets.ModelViewSet):
                     title=f'Team Documents - {team.name}',
                     description=f'Shared documents uploaded for {team.name}.',
                 )
+            if chat_session.is_deleted:
+                chat_session.is_deleted = False
+                chat_session.deleted_at = None
+                chat_session.save(update_fields=['is_deleted', 'deleted_at', 'updated_at'])
+            hidden_chat_session = chat_session
             chat_session_id = chat_session.id
 
         files = request.FILES.getlist('files') or [request.FILES.get('file')]
@@ -101,10 +223,36 @@ class TeamViewSet(viewsets.ModelViewSet):
                 continue
             doc = upload_serializer.save()
             TeamDocument.objects.get_or_create(team=team, document=doc, defaults={'uploaded_by': request.user})
+            send_team_event(team, 'team.document.created', {
+                'document_id': doc.id,
+                'title': doc.title,
+                'index_status': doc.index_status,
+                'uploaded_by': request.user.email,
+            })
+            send_to_admins('dashboard.document.created', {
+                'team_id': team.id,
+                'team_name': team.name,
+                'document_id': doc.id,
+                'title': doc.title,
+                'index_status': doc.index_status,
+                'uploaded_by': request.user.email,
+            })
+            for membership in team.memberships.exclude(user=request.user).select_related('user'):
+                notification = InAppNotification.objects.create(
+                    user=membership.user,
+                    title='New team document',
+                    message=f'{request.user.email} uploaded "{doc.title}" to {team.name}.',
+                    data={'type': 'team_document_created', 'team_id': team.id, 'document_id': doc.id},
+                )
+                send_notification(notification)
             indexer._schedule_indexing(doc)
             doc.refresh_from_db()
             created_docs.append(doc)
 
+        if hidden_chat_session:
+            hidden_chat_session.is_deleted = True
+            hidden_chat_session.deleted_at = timezone.now()
+            hidden_chat_session.save(update_fields=['is_deleted', 'deleted_at', 'updated_at'])
         if not created_docs and errors:
             return Response({'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
         return Response({
@@ -138,6 +286,20 @@ class TeamInvitationViewSet(viewsets.ReadOnlyModelViewSet):
         invitation.invited_user = request.user
         invitation.responded_at = timezone.now()
         invitation.save(update_fields=['status', 'invited_user', 'responded_at'])
+        owner_notification = InAppNotification.objects.create(
+            user=invitation.invited_by,
+            title='Team invitation response',
+            message=f'{request.user.email} {target_status.lower()} your invitation to {invitation.team.name}.',
+            data={'type': 'team_invitation_response', 'invitation_id': str(invitation.id), 'team_id': invitation.team_id, 'status': target_status},
+        )
+        send_notification(owner_notification)
+        send_to_user(invitation.invited_by_id, 'team.invitation.responded', TeamInvitationSerializer(invitation).data)
+        send_to_user(request.user.id, 'team.invitation.updated', TeamInvitationSerializer(invitation).data)
+        if target_status == TeamInvitation.Status.ACCEPTED:
+            send_team_event(invitation.team, 'team.membership.created', {
+                'user_id': str(request.user.id),
+                'email': request.user.email,
+            })
         return Response(TeamInvitationSerializer(invitation).data)
 
     @action(detail=True, methods=['post'])
@@ -174,6 +336,10 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         notification = self.get_object()
         notification.is_read = True
         notification.save(update_fields=['is_read'])
+        send_to_user(request.user.id, 'notification.updated', {
+            'id': notification.id,
+            'is_read': True,
+        })
         return Response({'status': 'ok'})
 
 
@@ -184,6 +350,11 @@ class ChatDocumentAttachmentView(APIView):
         serializer = ChatAttachDocumentsSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         result = serializer.save()
+        for item in result['created']:
+            send_to_user(request.user.id, 'chat.document.attached', {
+                'chat_session_id': item.chat_session_id,
+                'document_id': item.document_id,
+            })
         return Response({
             'attached': [item.document_id for item in result['created']],
             'skipped': result['skipped'],

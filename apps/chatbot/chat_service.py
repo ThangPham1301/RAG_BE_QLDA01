@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import time
+import unicodedata
 from typing import Dict, Optional
 from decouple import config
 
@@ -14,8 +15,15 @@ from .chroma_service import ChromaService
 from .rag_service import RAGService
 from .prompt_service import get_default_instruction
 from apps.documents.models import Document
+from apps.realtime.events import send_to_admins
 
 logger = logging.getLogger(__name__)
+
+
+def _fold_intent_text(text: str) -> str:
+	text = unicodedata.normalize('NFD', text or '').lower()
+	text = ''.join(ch for ch in text if unicodedata.category(ch) != 'Mn')
+	return text.replace('đ', 'd').strip()
 
 
 class ChatService:
@@ -79,7 +87,9 @@ class ChatService:
 	def _is_small_talk(self, question: str) -> bool:
 		if not question:
 			return False
-		q = question.strip().lower()
+		q = _fold_intent_text(question)
+		if q in {'chao', 'hi', 'hello', 'hey', 'cam on', 'thanks', 'thank you'}:
+			return True
 		for pattern in self.small_talk_patterns:
 			if re.match(pattern, q):
 				return True
@@ -89,7 +99,9 @@ class ChatService:
 		"""Phát hiện câu hỏi yêu cầu tóm tắt tài liệu."""
 		if not question:
 			return False
-		q = question.strip().lower()
+		q = _fold_intent_text(question)
+		if any(keyword in q for keyword in ['tom tat', 'tom luoc', 'tong quan', 'diem chinh', 'y chinh']):
+			return True
 		for pattern in self.summary_patterns:
 			if re.search(pattern, q):
 				return True
@@ -98,7 +110,9 @@ class ChatService:
 	def _is_signer_request(self, question: str) -> bool:
 		if not question:
 			return False
-		q = question.strip().lower()
+		q = _fold_intent_text(question)
+		if any(keyword in q for keyword in ['nguoi ky', 'ai ky', 'ky ten', 'signer', 'who signed']):
+			return True
 		for pattern in self.signer_patterns:
 			if re.search(pattern, q):
 				return True
@@ -107,7 +121,9 @@ class ChatService:
 	def _is_document_number_request(self, question: str) -> bool:
 		if not question:
 			return False
-		q = question.strip().lower()
+		q = _fold_intent_text(question)
+		if any(keyword in q for keyword in ['so van ban', 'van ban so', 'document number']):
+			return True
 		for pattern in self.document_number_patterns:
 			if re.search(pattern, q):
 				return True
@@ -116,7 +132,9 @@ class ChatService:
 	def _is_place_date_request(self, question: str) -> bool:
 		if not question:
 			return False
-		q = question.strip().lower()
+		q = _fold_intent_text(question)
+		if any(keyword in q for keyword in ['ngay ban hanh', 'ngay ky', 'ban hanh ngay', 'document date']):
+			return True
 		for pattern in self.place_date_patterns:
 			if re.search(pattern, q):
 				return True
@@ -317,6 +335,13 @@ class ChatService:
 			role=ChatMessage.Role.USER,
 			content=question
 		)
+		send_to_admins('dashboard.query.created', {
+			'message_id': user_msg.id,
+			'chat_session_id': session.id,
+			'project_id': project_id,
+			'user_id': session.user_id,
+			'created_at': user_msg.created_at.isoformat(),
+		})
 		logger.info(f'[ChatService] User message saved: id={user_msg.id}')
 		
 		# [3] Intent routing + generation
@@ -563,6 +588,13 @@ class ChatService:
 			role=ChatMessage.Role.USER,
 			content=question,
 		)
+		send_to_admins('dashboard.query.created', {
+			'message_id': user_msg.id,
+			'chat_session_id': session.id,
+			'project_id': project_id,
+			'user_id': session.user_id,
+			'created_at': user_msg.created_at.isoformat(),
+		})
 		logger.info('[ChatService.stream] User message saved: id=%s', user_msg.id)
 
 		# Yield event báo user message đã lưu (FE có thể hiện message ngay)
@@ -576,15 +608,8 @@ class ChatService:
 		retrieved_chunks = []
 
 		if intent == 'small_talk':
-			# Small talk: dùng stream nhưng prompt đơn giản
-			prompt = (
-				"Bạn là trợ lý thân thiện. Trả lời tự nhiên, ngắn gọn, lịch sự bằng tiếng Việt "
-				"cho câu xã giao sau, không cần trích dẫn nguồn:\n\n"
-				f"Câu người dùng: {question}"
-			)
-			for token in self.rag.llm.generate_stream(prompt, max_tokens=120, temperature=0.4):
-				answer_text += token
-				yield f'data: {_json.dumps({"type": "token", "content": token})}\n\n'
+			answer_text = 'Chào bạn. Bạn muốn hỏi gì về tài liệu?'
+			yield f'data: {_json.dumps({"type": "token", "content": answer_text})}\n\n'
 
 		elif intent == 'summary':
 			# Summary: không stream được tốt (Map-Reduce nhiều bước)
@@ -689,6 +714,9 @@ class ChatService:
 						answer_text += token
 						yield f'data: {_json.dumps({"type": "token", "content": token})}\n\n'
 					logger.info('[ChatService.stream] LLM stream done: tokens=%d answer_len=%d', stream_token_count, len(answer_text))
+					if not answer_text.strip():
+						answer_text = 'Không tạo được phản hồi từ mô hình. Vui lòng thử lại hoặc kiểm tra cấu hình Ollama.'
+						yield f'data: {_json.dumps({"type": "token", "content": answer_text})}\n\n'
 				except Exception as llm_exc:
 					logger.error('[ChatService.stream] LLM stream exception: %s', llm_exc, exc_info=True)
 					error_msg = f'[Lỗi LLM: {str(llm_exc)[:80]}]'

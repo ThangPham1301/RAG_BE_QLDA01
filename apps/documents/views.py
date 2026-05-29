@@ -3,7 +3,7 @@ from django.db import models
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from django.utils import timezone
@@ -11,6 +11,7 @@ from .models import Document
 from .serializers import DocumentSerializer, DocumentUploadSerializer
 from apps.teams.permissions import accessible_documents_for_user, user_can_access_document
 from apps.teams.serializers import CreateDocumentShareSerializer, DocumentShareSerializer
+from apps.realtime.events import send_document_status, send_to_user
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 class DocumentViewSet(viewsets.ModelViewSet):
     serializer_class = DocumentSerializer
     permission_classes = [permissions.IsAuthenticated]
-    parser_classes = (MultiPartParser, FormParser)
+    parser_classes = (JSONParser, MultiPartParser, FormParser)
     filterset_fields = ['chat_session_id', 'file_type', 'index_status']
 
     def get_queryset(self):
@@ -96,6 +97,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         try:
             document.index_status = Document.IndexStatus.INDEXING
             document.save(update_fields=['index_status'])
+            send_document_status(document, Document.IndexStatus.INDEXING)
             
             # Import here to avoid circular imports
             from .services import populate_document_extracted_text, index_document_to_chroma
@@ -110,6 +112,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
             document.indexed_chunks = indexed_chunks
             document.indexed_at = timezone.now()
             document.save(update_fields=['index_status', 'indexed_chunks', 'indexed_at'])
+            send_document_status(document, Document.IndexStatus.INDEXED)
             logger.info(f'[_schedule_indexing] Completed successfully for doc_id={document.id}, chunks={indexed_chunks}')
             
         except Exception as e:
@@ -117,6 +120,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
             document.index_status = Document.IndexStatus.FAILED
             document.index_error = str(e)[:500]  # Truncate to 500 chars
             document.save(update_fields=['index_status', 'index_error'])
+            send_document_status(document, Document.IndexStatus.FAILED)
             logger.error(f"[_schedule_indexing] Document marked as FAILED with error: {document.index_error}")
 
     @action(detail=True, methods=['post'])
@@ -157,6 +161,64 @@ class DocumentViewSet(viewsets.ModelViewSet):
         doc.deleted_at = timezone.now()
         doc.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=['post'], url_path='bulk-delete')
+    def bulk_delete(self, request):
+        document_ids = request.data.get('document_ids') or []
+        if not isinstance(document_ids, list) or not document_ids:
+            return Response({'document_ids': 'At least one document id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        deleted = []
+        skipped = []
+        for doc in Document.objects.filter(id__in=document_ids, is_deleted=False).select_related('chat_session'):
+            can_delete = (
+                request.user.is_staff
+                or doc.uploaded_by_id == request.user.id
+                or doc.chat_session.user_id == request.user.id
+            )
+            if doc.team_links.exists() or not can_delete:
+                skipped.append(doc.id)
+                continue
+            doc.is_deleted = True
+            doc.deleted_at = timezone.now()
+            doc.save(update_fields=['is_deleted', 'deleted_at', 'updated_at'])
+            deleted.append(doc.id)
+
+        missing = [doc_id for doc_id in document_ids if doc_id not in deleted and doc_id not in skipped]
+        return Response({'deleted': deleted, 'skipped': skipped, 'missing': missing})
+
+    @action(detail=False, methods=['post'], url_path='bulk-share')
+    def bulk_share(self, request):
+        document_ids = request.data.get('document_ids') or []
+        email = request.data.get('email', '')
+        if not isinstance(document_ids, list) or not document_ids:
+            return Response({'document_ids': 'At least one document id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not email:
+            return Response({'email': 'This field is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        shared = []
+        skipped = []
+        errors = {}
+        for doc in Document.objects.filter(id__in=document_ids, is_deleted=False).select_related('chat_session'):
+            serializer = CreateDocumentShareSerializer(
+                data={'email': email},
+                context={'request': request, 'document': doc},
+            )
+            if not serializer.is_valid():
+                errors[str(doc.id)] = serializer.errors
+                skipped.append(doc.id)
+                continue
+            share = serializer.save()
+            send_to_user(share.shared_with_id, 'document.shared', {
+                'document_id': doc.id,
+                'title': doc.title,
+                'share_id': share.id,
+                'shared_by': request.user.email,
+            })
+            shared.append(doc.id)
+
+        missing = [doc_id for doc_id in document_ids if doc_id not in shared and doc_id not in skipped]
+        return Response({'shared': shared, 'skipped': skipped, 'missing': missing, 'errors': errors})
 
     @action(detail=True, methods=['get'], url_path='preview', permission_classes=[permissions.AllowAny])
     def preview(self, request, pk=None):
@@ -274,4 +336,10 @@ class DocumentViewSet(viewsets.ModelViewSet):
         serializer = CreateDocumentShareSerializer(data=request.data, context={'request': request, 'document': doc})
         serializer.is_valid(raise_exception=True)
         share = serializer.save()
+        send_to_user(share.shared_with_id, 'document.shared', {
+            'document_id': doc.id,
+            'title': doc.title,
+            'share_id': share.id,
+            'shared_by': request.user.email,
+        })
         return Response(DocumentShareSerializer(share).data, status=status.HTTP_201_CREATED)

@@ -185,6 +185,7 @@ class LLMService:
 						# Log chunk cuối để xem có done_reason hay lỗi gì không
 						if token_count == 0:
 							logger.warning('Zero tokens generated. Last chunk: %s', raw_line)
+							yield '[Hệ thống: Mô hình không sinh nội dung. Hãy thử lại hoặc kiểm tra OLLAMA_MODEL/OLLAMA_NUM_PREDICT.]'
 						break
 
 		except requests.exceptions.ReadTimeout as e:

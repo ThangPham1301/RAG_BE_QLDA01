@@ -35,6 +35,7 @@ CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -43,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     
     # Third-party apps
+    'channels',
     'rest_framework',
     'corsheaders',
     
@@ -54,6 +56,7 @@ INSTALLED_APPS = [
     'apps.documents',
     'apps.chatbot',
     'apps.teams',
+    'apps.realtime',
 ]
 
 MIDDLEWARE = [
@@ -86,6 +89,22 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'RAG_BE.wsgi.application'
+ASGI_APPLICATION = 'RAG_BE.asgi.application'
+
+REDIS_URL = config('REDIS_URL', default='')
+if REDIS_URL:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {'hosts': [REDIS_URL]},
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        }
+    }
 
 
 # Database

@@ -14,12 +14,13 @@ class DocumentSerializer(serializers.ModelSerializer):
 	is_team_document = serializers.SerializerMethodField()
 	is_shared_with_me = serializers.SerializerMethodField()
 	can_share = serializers.SerializerMethodField()
+	can_delete = serializers.SerializerMethodField()
 
 	class Meta:
 		model = Document
 		fields = [
 			'id', 'chat_session', 'chat_session_title', 'project_id', 'project_name', 'title', 'file', 'file_url',
-			'file_size', 'access_source', 'is_team_document', 'is_shared_with_me', 'can_share',
+			'file_size', 'access_source', 'is_team_document', 'is_shared_with_me', 'can_share', 'can_delete',
 			'file_type', 'extracted_text', 'summary', 'ocr_layout', 'extracted_fields', 'index_status',
 			'indexed_chunks', 'index_error', 'indexed_at', 'uploaded_by',
 			'uploaded_by_email', 'is_deleted', 'deleted_at', 'uploaded_at', 'updated_at'
@@ -75,6 +76,14 @@ class DocumentSerializer(serializers.ModelSerializer):
 		return 'owned'
 
 	def get_can_share(self, obj):
+		user = self._request_user()
+		if not user or not user.is_authenticated:
+			return False
+		if self.get_is_team_document(obj):
+			return False
+		return obj.uploaded_by_id == user.id or obj.chat_session.user_id == user.id or user.is_staff
+
+	def get_can_delete(self, obj):
 		user = self._request_user()
 		if not user or not user.is_authenticated:
 			return False

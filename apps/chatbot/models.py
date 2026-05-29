@@ -134,3 +134,47 @@ class ChatFeedback(models.Model):
 	
 	def __str__(self):
 		return f"Feedback: {self.feedback_type} - {self.message.id}"
+
+
+class ConversationEvaluation(models.Model):
+	"""Official user evaluation for an entire chat session."""
+
+	class Rating(models.IntegerChoices):
+		VERY_BAD = 1, 'Very bad'
+		BAD = 2, 'Bad'
+		NEUTRAL = 3, 'Neutral'
+		GOOD = 4, 'Good'
+		EXCELLENT = 5, 'Excellent'
+
+	chat_session = models.OneToOneField(ChatSession, on_delete=models.CASCADE, related_name='evaluation')
+	user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='conversation_evaluations')
+
+	rating = models.PositiveSmallIntegerField(choices=Rating.choices)
+	accuracy_rating = models.PositiveSmallIntegerField(choices=Rating.choices, null=True, blank=True)
+	usefulness_rating = models.PositiveSmallIntegerField(choices=Rating.choices, null=True, blank=True)
+	grounding_rating = models.PositiveSmallIntegerField(choices=Rating.choices, null=True, blank=True)
+	comment = models.TextField(blank=True)
+
+	is_pinned = models.BooleanField(default=False)
+	pinned_at = models.DateTimeField(null=True, blank=True)
+	pinned_by = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.SET_NULL,
+		null=True,
+		blank=True,
+		related_name='pinned_conversation_evaluations',
+	)
+
+	created_at = models.DateTimeField(auto_now_add=True)
+	updated_at = models.DateTimeField(auto_now=True)
+
+	class Meta:
+		ordering = ['-updated_at']
+		indexes = [
+			models.Index(fields=['user', '-updated_at']),
+			models.Index(fields=['rating', '-updated_at']),
+			models.Index(fields=['is_pinned', '-updated_at']),
+		]
+
+	def __str__(self):
+		return f'Evaluation(session={self.chat_session_id}, rating={self.rating})'

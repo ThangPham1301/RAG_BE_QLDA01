@@ -10,17 +10,23 @@ from .models import User, OTPToken, PasswordResetToken, EmailVerificationToken, 
 
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for User model."""
+    role = serializers.SerializerMethodField()
     
     class Meta:
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'username',
             'phone_number', 'avatar_url', 'bio', 'is_email_verified',
+            'is_staff', 'is_superuser', 'role',
             'created_at', 'updated_at', 'last_login_at'
         ]
         read_only_fields = [
-            'id', 'is_email_verified', 'created_at', 'updated_at', 'last_login_at'
+            'id', 'is_email_verified', 'is_staff', 'is_superuser', 'role',
+            'created_at', 'updated_at', 'last_login_at'
         ]
+
+    def get_role(self, obj):
+        return 'admin' if obj.is_staff or obj.is_superuser else 'user'
 
 
 class SignUpSerializer(serializers.ModelSerializer):

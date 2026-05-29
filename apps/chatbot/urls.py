@@ -1,10 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ChatSessionViewSet, ChatSendView, ChatStreamView
+from .views import ChatSessionViewSet, ChatSendView, ChatStreamView, ConversationEvaluationViewSet
 from .views_new import AskQuestionView
 
 router = DefaultRouter()
 router.register(r'sessions', ChatSessionViewSet, basename='chat-session')
+router.register(r'evaluations', ConversationEvaluationViewSet, basename='conversation-evaluation')
 
 urlpatterns = [
 	path('', include(router.urls)),
