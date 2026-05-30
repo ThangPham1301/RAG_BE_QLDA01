@@ -11,8 +11,10 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth.models import Group, Permission
 from django.contrib.auth import authenticate
 from django.core.mail import send_mail
+from django.db.models import F, Q
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
@@ -23,12 +25,17 @@ from django_ratelimit.decorators import ratelimit
 from cloudinary import uploader
 from cloudinary.exceptions import Error as CloudinaryError
 
-from .models import User, EmailVerificationToken, OTPToken, PasswordResetToken, AuthSession
+from .models import (
+    User, EmailVerificationToken, OTPToken, PasswordResetToken, AuthSession,
+    TwoFactorLoginChallenge
+)
 from .serializers import (
     UserSerializer, SignUpSerializer, LoginSerializer, OTPRequestSerializer,
     OTPVerifySerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer,
     EmailVerificationSerializer, ChangePasswordSerializer, AuthSessionSerializer,
-    GoogleOAuthSerializer
+    GoogleOAuthSerializer, TwoFactorToggleSerializer, AdminUserSerializer,
+    AdminUserRoleSerializer, AdminUserStatusSerializer, AdminResetPasswordSerializer,
+    GroupSerializer, PermissionSerializer
 )
 
 logger = logging.getLogger(__name__)
@@ -67,6 +74,39 @@ def create_auth_session(user, request, refresh_token):
         user_agent=get_user_agent(request),
         device_name=request.META.get('HTTP_USER_AGENT', 'Unknown Device')[:255]
     )
+
+
+def revoke_all_user_sessions(user):
+    """Invalidate all JWTs and tracked sessions for a user."""
+    User.objects.filter(pk=user.pk).update(auth_token_version=F('auth_token_version') + 1)
+    user.refresh_from_db(fields=['auth_token_version'])
+
+    AuthSession.objects.filter(user=user, is_active=True).update(
+        is_active=False,
+        revoked_at=timezone.now()
+    )
+    TwoFactorLoginChallenge.objects.filter(user=user, is_used=False).update(
+        is_used=True,
+        verified_at=timezone.now()
+    )
+
+
+def issue_auth_response(user, request, message):
+    """Create JWT tokens, track the session, and return the login payload."""
+    user.update_last_login()
+    refresh = RefreshToken.for_user(user)
+    refresh['token_version'] = user.auth_token_version
+    session = create_auth_session(user, request, refresh)
+
+    return {
+        'message': message,
+        'user': UserSerializer(user).data,
+        'tokens': {
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+        },
+        'session_id': str(session.id)
+    }
 
 
 def send_email(subject, email_to, template_name, context):
@@ -110,6 +150,25 @@ def send_verification_email(user):
         template_name='verify_email',
         context=email_context
     )
+
+
+def send_login_2fa_challenge(user):
+    """Create a 2FA login challenge and email its OTP."""
+    challenge = TwoFactorLoginChallenge.create_challenge(user)
+    email_context = {
+        'user_name': user.get_full_name() or user.email,
+        'otp': challenge.otp_token.otp,
+        'expiry_minutes': settings.OTP_EXPIRY_MINUTES
+    }
+
+    send_email(
+        subject='Your Login Verification Code',
+        email_to=user.email,
+        template_name='login_otp',
+        context=email_context
+    )
+
+    return challenge
 
 
 @api_view(['POST'])
@@ -204,6 +263,14 @@ def format_serializer_errors(errors):
     return 'Authentication failed. Please try again.'
 
 
+def is_admin_user(user):
+    return bool(user and user.is_authenticated and (user.is_staff or user.is_superuser))
+
+
+def admin_required_response():
+    return Response({'detail': 'Admin role is required.'}, status=status.HTTP_403_FORBIDDEN)
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @ratelimit(key='ip', rate='10/h', method='POST')
@@ -232,23 +299,26 @@ def login_view(request):
                 'email': user.email
             }, status=status.HTTP_403_FORBIDDEN)
 
-        user.update_last_login()
-        
-        # Generate tokens
-        refresh = RefreshToken.for_user(user)
-        
-        # Create session
-        session = create_auth_session(user, request, refresh)
-        
-        return Response({
-            'message': 'Login successful',
-            'user': UserSerializer(user).data,
-            'tokens': {
-                'access': str(refresh.access_token),
-                'refresh': str(refresh),
-            },
-            'session_id': str(session.id)
-        }, status=status.HTTP_200_OK)
+        if user.is_two_factor_enabled:
+            try:
+                challenge = send_login_2fa_challenge(user)
+            except EmailDeliveryError:
+                return Response({
+                    'detail': 'Unable to send login verification code right now. Please try again later.'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+            return Response({
+                'message': 'Two-factor verification required. We sent an OTP to your email.',
+                'requires_2fa': True,
+                'email': user.email,
+                'challenge_token': challenge.token,
+                'expires_at': challenge.expires_at,
+            }, status=status.HTTP_200_OK)
+
+        return Response(
+            issue_auth_response(user, request, 'Login successful'),
+            status=status.HTTP_200_OK
+        )
     
     # Return consistent error format for frontend
     return Response({
@@ -269,6 +339,11 @@ def request_otp_view(request):
     if serializer.is_valid():
         user = User.objects.get(email=serializer.validated_data['email'])
         purpose = serializer.validated_data['purpose']
+
+        if purpose == 'login_2fa':
+            return Response({
+                'detail': 'Login OTP can only be requested after a successful password or Google login step.'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         # Create OTP
         otp_token = OTPToken.create_otp(user, purpose)
@@ -346,20 +421,14 @@ def verify_otp_view(request):
                 'message': 'Email verified successfully. You can now log in.'
             }, status=status.HTTP_200_OK)
         
-        # For login 2FA, generate JWT tokens
-        user.update_last_login()
-        refresh = RefreshToken.for_user(user)
-        session = create_auth_session(user, request, refresh)
-        
-        return Response({
-            'message': 'OTP verified. Login successful.',
-            'user': UserSerializer(user).data,
-            'tokens': {
-                'access': str(refresh.access_token),
-                'refresh': str(refresh),
-            },
-            'session_id': str(session.id)
-        }, status=status.HTTP_200_OK)
+        login_challenge = serializer.validated_data.get('login_challenge')
+        if login_challenge:
+            login_challenge.mark_as_verified()
+
+        return Response(
+            issue_auth_response(user, request, 'OTP verified. Login successful.'),
+            status=status.HTTP_200_OK
+        )
     
     return Response({
         'detail': format_serializer_errors(serializer.errors)
@@ -431,11 +500,7 @@ def password_reset_confirm_view(request):
         # Mark token as used
         token_obj.mark_as_used()
         
-        # Revoke all sessions
-        AuthSession.objects.filter(user=user, is_active=True).update(
-            is_active=False,
-            revoked_at=timezone.now()
-        )
+        revoke_all_user_sessions(user)
         
         # Send confirmation email
         email_context = {
@@ -517,6 +582,292 @@ def get_sessions_view(request):
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_users_view(request):
+    """List and search users for the in-app admin screen."""
+    if not is_admin_user(request.user):
+        return admin_required_response()
+
+    search = (request.query_params.get('search') or '').strip()
+    role = (request.query_params.get('role') or '').strip()
+    status_filter = (request.query_params.get('status') or '').strip()
+
+    users = User.objects.all().prefetch_related('groups').order_by('-created_at')
+
+    if search:
+        users = users.filter(
+            Q(email__icontains=search)
+            | Q(username__icontains=search)
+            | Q(first_name__icontains=search)
+            | Q(last_name__icontains=search)
+        )
+
+    if role == 'admin':
+        users = users.filter(is_staff=True, is_superuser=False)
+    elif role == 'superadmin':
+        users = users.filter(is_superuser=True)
+    elif role == 'user':
+        users = users.filter(is_staff=False, is_superuser=False)
+
+    if status_filter == 'active':
+        users = users.filter(is_active=True)
+    elif status_filter == 'locked':
+        users = users.filter(is_active=False)
+
+    return Response(AdminUserSerializer(users[:200], many=True).data, status=status.HTTP_200_OK)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def admin_user_status_view(request, user_id):
+    """Lock or unlock a user account."""
+    if not is_admin_user(request.user):
+        return admin_required_response()
+
+    try:
+        target = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if target.id == request.user.id:
+        return Response({'detail': 'You cannot lock your own account.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    serializer = AdminUserStatusSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({'detail': format_serializer_errors(serializer.errors)}, status=status.HTTP_400_BAD_REQUEST)
+
+    target.is_active = serializer.validated_data['is_active']
+    target.save(update_fields=['is_active'])
+
+    if not target.is_active:
+        revoke_all_user_sessions(target)
+
+    return Response(AdminUserSerializer(target).data, status=status.HTTP_200_OK)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def admin_user_role_view(request, user_id):
+    """Assign application role for a user."""
+    if not is_admin_user(request.user):
+        return admin_required_response()
+
+    try:
+        target = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if target.id == request.user.id:
+        return Response({'detail': 'You cannot change your own role.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    serializer = AdminUserRoleSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({'detail': format_serializer_errors(serializer.errors)}, status=status.HTTP_400_BAD_REQUEST)
+
+    role = serializer.validated_data['role']
+    if role == 'superadmin' and not request.user.is_superuser:
+        return Response({'detail': 'Only a superadmin can grant superadmin role.'}, status=status.HTTP_403_FORBIDDEN)
+
+    if target.is_superuser and not request.user.is_superuser:
+        return Response({'detail': 'Only a superadmin can change another superadmin.'}, status=status.HTTP_403_FORBIDDEN)
+
+    target.is_staff = role in ['admin', 'superadmin']
+    target.is_superuser = role == 'superadmin'
+    target.save(update_fields=['is_staff', 'is_superuser'])
+    revoke_all_user_sessions(target)
+
+    return Response(AdminUserSerializer(target).data, status=status.HTTP_200_OK)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def admin_user_groups_view(request, user_id):
+    """Assign Django auth groups to a user."""
+    if not is_admin_user(request.user):
+        return admin_required_response()
+
+    try:
+        target = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    group_ids = request.data.get('group_ids', [])
+    if not isinstance(group_ids, list):
+        return Response({'detail': 'group_ids must be a list.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    groups = Group.objects.filter(id__in=group_ids)
+    if groups.count() != len(set(group_ids)):
+        return Response({'detail': 'One or more groups were not found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    target.groups.set(groups)
+    revoke_all_user_sessions(target)
+
+    return Response(AdminUserSerializer(target).data, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def admin_user_reset_password_view(request, user_id):
+    """Reset a user's password and invalidate every existing session/token."""
+    if not is_admin_user(request.user):
+        return admin_required_response()
+
+    try:
+        target = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    serializer = AdminResetPasswordSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({'detail': format_serializer_errors(serializer.errors)}, status=status.HTTP_400_BAD_REQUEST)
+
+    target.set_password(serializer.validated_data['password'])
+    target.save(update_fields=['password'])
+    revoke_all_user_sessions(target)
+
+    return Response({'message': 'Password reset successfully. All user sessions were revoked.'}, status=status.HTTP_200_OK)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def admin_user_delete_view(request, user_id):
+    """Delete a user account."""
+    if not is_admin_user(request.user):
+        return admin_required_response()
+
+    try:
+        target = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if target.id == request.user.id:
+        return Response({'detail': 'You cannot delete your own account.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if target.is_superuser and not request.user.is_superuser:
+        return Response({'detail': 'Only a superadmin can delete another superadmin.'}, status=status.HTTP_403_FORBIDDEN)
+
+    target.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_user_logs_view(request, user_id):
+    """Return recent account activity logs for a user."""
+    if not is_admin_user(request.user):
+        return admin_required_response()
+
+    try:
+        target = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    logs = []
+
+    for session in target.auth_sessions.order_by('-created_at')[:30]:
+        logs.append({
+            'id': str(session.id),
+            'type': 'session',
+            'title': 'Login session created' if session.is_active else 'Session revoked',
+            'created_at': session.created_at,
+            'metadata': {
+                'device': session.device_name,
+                'ip_address': session.ip_address,
+                'last_activity_at': session.last_activity_at,
+                'revoked_at': session.revoked_at,
+            }
+        })
+
+    for otp in target.otp_tokens.order_by('-created_at')[:30]:
+        logs.append({
+            'id': str(otp.id),
+            'type': 'otp',
+            'title': f'OTP generated for {otp.purpose}',
+            'created_at': otp.created_at,
+            'metadata': {
+                'is_used': otp.is_used,
+                'attempts': otp.attempts,
+                'expires_at': otp.expires_at,
+                'verified_at': otp.verified_at,
+            }
+        })
+
+    for token in target.password_reset_tokens.order_by('-created_at')[:20]:
+        logs.append({
+            'id': str(token.id),
+            'type': 'password_reset',
+            'title': 'Password reset token created',
+            'created_at': token.created_at,
+            'metadata': {
+                'is_used': token.is_used,
+                'expires_at': token.expires_at,
+                'reset_at': token.reset_at,
+            }
+        })
+
+    logs.sort(key=lambda item: item['created_at'], reverse=True)
+    return Response({'user': AdminUserSerializer(target).data, 'logs': logs[:80]}, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_permissions_view(request):
+    """List permissions available for group assignment."""
+    if not is_admin_user(request.user):
+        return admin_required_response()
+
+    permissions = Permission.objects.select_related('content_type').order_by(
+        'content_type__app_label',
+        'content_type__model',
+        'codename',
+    )
+    return Response(PermissionSerializer(permissions, many=True).data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def admin_groups_view(request):
+    """List or create user groups."""
+    if not is_admin_user(request.user):
+        return admin_required_response()
+
+    if request.method == 'GET':
+        groups = Group.objects.prefetch_related('permissions').order_by('name')
+        return Response(GroupSerializer(groups, many=True).data, status=status.HTTP_200_OK)
+
+    serializer = GroupSerializer(data=request.data)
+    if serializer.is_valid():
+        group = serializer.save()
+        return Response(GroupSerializer(group).data, status=status.HTTP_201_CREATED)
+
+    return Response({'detail': format_serializer_errors(serializer.errors)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def admin_group_detail_view(request, group_id):
+    """Update or delete a user group."""
+    if not is_admin_user(request.user):
+        return admin_required_response()
+
+    try:
+        group = Group.objects.get(id=group_id)
+    except Group.DoesNotExist:
+        return Response({'detail': 'Group not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'DELETE':
+        group.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    serializer = GroupSerializer(group, data=request.data, partial=True)
+    if serializer.is_valid():
+        group = serializer.save()
+        return Response(GroupSerializer(group).data, status=status.HTTP_200_OK)
+
+    return Response({'detail': format_serializer_errors(serializer.errors)}, status=status.HTTP_400_BAD_REQUEST)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def change_password_view(request):
@@ -534,11 +885,7 @@ def change_password_view(request):
         user.set_password(serializer.validated_data['new_password'])
         user.save()
         
-        # Revoke all sessions except current
-        AuthSession.objects.filter(user=user, is_active=True).update(
-            is_active=False,
-            revoked_at=timezone.now()
-        )
+        revoke_all_user_sessions(user)
         
         return Response({
             'message': 'Password changed successfully. Please log in again.'
@@ -623,6 +970,8 @@ def google_oauth_callback_view(request):
                         is_email_verified=True,
                         avatar_url=picture_url,
                     )
+                    user.set_unusable_password()
+                    user.save(update_fields=['password'])
             else:
                 updated_fields = []
                 if first_name and not user.first_name:
@@ -637,25 +986,32 @@ def google_oauth_callback_view(request):
 
                 if updated_fields:
                     user.save(update_fields=updated_fields)
+
+            if not user.is_active:
+                return Response({
+                    'detail': 'This account is locked. Please contact an administrator.'
+                }, status=status.HTTP_403_FORBIDDEN)
             
-            # Update last login
-            user.update_last_login()
-            
-            # Generate tokens
-            refresh = RefreshToken.for_user(user)
-            
-            # Create session
-            session = create_auth_session(user, request, refresh)
-            
-            return Response({
-                'message': 'Google login successful',
-                'user': UserSerializer(user).data,
-                'tokens': {
-                    'access': str(refresh.access_token),
-                    'refresh': str(refresh),
-                },
-                'session_id': str(session.id)
-            }, status=status.HTTP_200_OK)
+            if user.is_two_factor_enabled:
+                try:
+                    challenge = send_login_2fa_challenge(user)
+                except EmailDeliveryError:
+                    return Response({
+                        'detail': 'Unable to send login verification code right now. Please try again later.'
+                    }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+                return Response({
+                    'message': 'Two-factor verification required. We sent an OTP to your email.',
+                    'requires_2fa': True,
+                    'email': user.email,
+                    'challenge_token': challenge.token,
+                    'expires_at': challenge.expires_at,
+                }, status=status.HTTP_200_OK)
+
+            return Response(
+                issue_auth_response(user, request, 'Google login successful'),
+                status=status.HTTP_200_OK
+            )
         
         except Exception as e:
             logger.error("Google OAuth error: %s", str(e), exc_info=True)
@@ -695,6 +1051,44 @@ def update_profile_view(request):
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def toggle_two_factor_view(request):
+    """
+    Enable or disable email OTP two-factor authentication for the current user.
+    POST /api/auth/2fa
+    Body: {"enabled": true}
+    """
+    serializer = TwoFactorToggleSerializer(data=request.data)
+
+    if serializer.is_valid():
+        user = request.user
+        enabled = serializer.validated_data['enabled']
+
+        if enabled and not user.is_email_verified:
+            return Response({
+                'detail': 'Please verify your email before enabling two-factor authentication.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        user.is_two_factor_enabled = enabled
+        user.save(update_fields=['is_two_factor_enabled'])
+
+        if not enabled:
+            TwoFactorLoginChallenge.objects.filter(
+                user=user,
+                is_used=False
+            ).update(is_used=True, verified_at=timezone.now())
+
+        return Response({
+            'message': 'Two-factor authentication enabled.' if enabled else 'Two-factor authentication disabled.',
+            'user': UserSerializer(user).data
+        }, status=status.HTTP_200_OK)
+
+    return Response({
+        'detail': format_serializer_errors(serializer.errors)
+    }, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])

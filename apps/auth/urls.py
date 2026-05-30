@@ -1,7 +1,6 @@
 from django.urls import path
-from rest_framework_simplejwt.views import TokenRefreshView
-
 from . import views
+from .token_views import TokenVersionRefreshView
 
 app_name = 'auth'
 
@@ -29,9 +28,22 @@ urlpatterns = [
     path('profile', views.update_profile_view, name='update_profile'),
     path('profile/avatar', views.upload_avatar_view, name='upload_avatar'),
     path('cloudinary/sign', views.cloudinary_signature_view, name='cloudinary_sign'),
+    path('2fa', views.toggle_two_factor_view, name='toggle_two_factor'),
     path('change-password', views.change_password_view, name='change_password'),
     path('sessions', views.get_sessions_view, name='get_sessions'),
+
+    # In-app admin user management
+    path('admin/users', views.admin_users_view, name='admin_users'),
+    path('admin/users/<uuid:user_id>/status', views.admin_user_status_view, name='admin_user_status'),
+    path('admin/users/<uuid:user_id>/role', views.admin_user_role_view, name='admin_user_role'),
+    path('admin/users/<uuid:user_id>/groups', views.admin_user_groups_view, name='admin_user_groups'),
+    path('admin/users/<uuid:user_id>/reset-password', views.admin_user_reset_password_view, name='admin_user_reset_password'),
+    path('admin/users/<uuid:user_id>/logs', views.admin_user_logs_view, name='admin_user_logs'),
+    path('admin/users/<uuid:user_id>', views.admin_user_delete_view, name='admin_user_delete'),
+    path('admin/groups', views.admin_groups_view, name='admin_groups'),
+    path('admin/groups/<int:group_id>', views.admin_group_detail_view, name='admin_group_detail'),
+    path('admin/permissions', views.admin_permissions_view, name='admin_permissions'),
     
     # Token endpoints
-    path('token/refresh', TokenRefreshView.as_view(), name='token_refresh'),
+    path('token/refresh', TokenVersionRefreshView.as_view(), name='token_refresh'),
 ]

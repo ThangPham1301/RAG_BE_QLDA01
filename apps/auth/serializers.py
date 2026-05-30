@@ -1,32 +1,138 @@
 import re
 from rest_framework import serializers
+from django.contrib.auth.models import Group, Permission
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from email_validator import validate_email, EmailNotValidError
 
-from .models import User, OTPToken, PasswordResetToken, EmailVerificationToken, AuthSession
+from .models import (
+    User, OTPToken, PasswordResetToken, EmailVerificationToken, AuthSession,
+    TwoFactorLoginChallenge
+)
 
 
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for User model."""
     role = serializers.SerializerMethodField()
+    has_usable_password = serializers.SerializerMethodField()
     
     class Meta:
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'username',
             'phone_number', 'avatar_url', 'bio', 'is_email_verified',
-            'is_staff', 'is_superuser', 'role',
-            'created_at', 'updated_at', 'last_login_at'
+            'is_two_factor_enabled', 'is_staff', 'is_superuser', 'role',
+            'has_usable_password', 'created_at', 'updated_at', 'last_login_at'
         ]
         read_only_fields = [
-            'id', 'is_email_verified', 'is_staff', 'is_superuser', 'role',
-            'created_at', 'updated_at', 'last_login_at'
+            'id', 'is_email_verified', 'is_two_factor_enabled', 'is_staff', 'is_superuser', 'role',
+            'has_usable_password', 'created_at', 'updated_at', 'last_login_at'
         ]
 
     def get_role(self, obj):
         return 'admin' if obj.is_staff or obj.is_superuser else 'user'
+
+    def get_has_usable_password(self, obj):
+        return bool(obj.password) and obj.has_usable_password()
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    """Compact user data for the in-app admin user management screen."""
+
+    role = serializers.SerializerMethodField()
+    full_name = serializers.SerializerMethodField()
+    groups = serializers.SerializerMethodField()
+    active_sessions = serializers.SerializerMethodField()
+    team_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'email', 'username', 'first_name', 'last_name', 'full_name',
+            'phone_number', 'avatar_url', 'bio', 'is_active', 'is_email_verified',
+            'is_two_factor_enabled', 'is_staff', 'is_superuser', 'role',
+            'groups', 'active_sessions', 'team_count',
+            'created_at', 'updated_at', 'last_login_at'
+        ]
+
+    def get_role(self, obj):
+        if obj.is_superuser:
+            return 'superadmin'
+        if obj.is_staff:
+            return 'admin'
+        return 'user'
+
+    def get_full_name(self, obj):
+        return obj.get_full_name() or obj.email
+
+    def get_groups(self, obj):
+        return [{'id': group.id, 'name': group.name} for group in obj.groups.all()]
+
+    def get_active_sessions(self, obj):
+        return obj.auth_sessions.filter(is_active=True).count()
+
+    def get_team_count(self, obj):
+        return obj.team_memberships.count()
+
+
+class AdminUserRoleSerializer(serializers.Serializer):
+    """Serializer for admin-driven role changes."""
+
+    role = serializers.ChoiceField(choices=['user', 'admin', 'superadmin'])
+
+
+class AdminUserStatusSerializer(serializers.Serializer):
+    """Serializer for locking or unlocking an account."""
+
+    is_active = serializers.BooleanField()
+
+
+class AdminResetPasswordSerializer(serializers.Serializer):
+    """Serializer for admin password reset."""
+
+    password = serializers.CharField(write_only=True, min_length=8)
+    password_confirm = serializers.CharField(write_only=True)
+
+    def validate_password(self, value):
+        try:
+            validate_password(value)
+        except ValidationError as e:
+            raise serializers.ValidationError(list(e.messages))
+        return value
+
+    def validate(self, data):
+        if data['password'] != data['password_confirm']:
+            raise serializers.ValidationError({'password_confirm': 'Passwords do not match'})
+        return data
+
+
+class PermissionSerializer(serializers.ModelSerializer):
+    app_label = serializers.CharField(source='content_type.app_label', read_only=True)
+    model = serializers.CharField(source='content_type.model', read_only=True)
+
+    class Meta:
+        model = Permission
+        fields = ['id', 'name', 'codename', 'app_label', 'model']
+
+
+class GroupSerializer(serializers.ModelSerializer):
+    permissions = PermissionSerializer(many=True, read_only=True)
+    permission_ids = serializers.PrimaryKeyRelatedField(
+        source='permissions',
+        queryset=Permission.objects.all(),
+        many=True,
+        write_only=True,
+        required=False,
+    )
+    user_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Group
+        fields = ['id', 'name', 'permissions', 'permission_ids', 'user_count']
+
+    def get_user_count(self, obj):
+        return obj.user_set.count()
 
 
 class SignUpSerializer(serializers.ModelSerializer):
@@ -112,6 +218,9 @@ class LoginSerializer(serializers.Serializer):
         
         if not user.check_password(data['password']):
             raise serializers.ValidationError('Invalid email or password')
+
+        if not user.is_active:
+            raise serializers.ValidationError('This account is locked. Please contact an administrator.')
         
         data['user'] = user
         data['email_not_verified'] = not user.is_email_verified
@@ -139,6 +248,7 @@ class OTPVerifySerializer(serializers.Serializer):
     
     email = serializers.EmailField()
     otp = serializers.CharField(max_length=6, min_length=6)
+    challenge_token = serializers.CharField(required=False, allow_blank=True)
     purpose = serializers.ChoiceField(
         choices=['login_2fa', 'password_reset', 'signup'],
         default='login_2fa'
@@ -159,6 +269,29 @@ class OTPVerifySerializer(serializers.Serializer):
     def validate(self, data):
         """Validate OTP exists and is valid."""
         user = User.objects.get(email=data['email'])
+
+        if data['purpose'] == 'login_2fa':
+            challenge_token = data.get('challenge_token')
+            if not challenge_token:
+                raise serializers.ValidationError('Login challenge is required')
+
+            challenge = TwoFactorLoginChallenge.objects.filter(
+                user=user,
+                token=challenge_token,
+                is_used=False
+            ).select_related('otp_token').first()
+
+            if not challenge or not challenge.is_valid():
+                raise serializers.ValidationError('Invalid or expired login challenge')
+
+            if challenge.otp_token.otp != data['otp']:
+                if not challenge.otp_token.verify_otp(data['otp']):
+                    raise serializers.ValidationError('Invalid or expired OTP')
+
+            data['otp_token'] = challenge.otp_token
+            data['login_challenge'] = challenge
+            return data
+
         otp_token = OTPToken.objects.filter(
             user=user,
             otp=data['otp'],
@@ -170,6 +303,12 @@ class OTPVerifySerializer(serializers.Serializer):
         
         data['otp_token'] = otp_token
         return data
+
+
+class TwoFactorToggleSerializer(serializers.Serializer):
+    """Serializer for enabling or disabling email OTP two-factor auth."""
+
+    enabled = serializers.BooleanField()
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):
@@ -238,7 +377,7 @@ class EmailVerificationSerializer(serializers.Serializer):
 class ChangePasswordSerializer(serializers.Serializer):
     """Serializer for changing password."""
     
-    old_password = serializers.CharField(write_only=True)
+    old_password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     new_password = serializers.CharField(write_only=True, min_length=8)
     new_password_confirm = serializers.CharField(write_only=True)
     
@@ -258,7 +397,15 @@ class ChangePasswordSerializer(serializers.Serializer):
             })
         
         user = self.context['request'].user
-        if not user.check_password(data['old_password']):
+        user_has_password = bool(user.password) and user.has_usable_password()
+        old_password = data.get('old_password', '')
+
+        if user_has_password and not old_password:
+            raise serializers.ValidationError({
+                'old_password': 'Old password is required'
+            })
+
+        if user_has_password and not user.check_password(old_password):
             raise serializers.ValidationError({
                 'old_password': 'Old password is incorrect'
             })
