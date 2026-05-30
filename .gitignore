@@ -1,18 +1,15 @@
-# Python cache full
+# Python cache
 __pycache__/
 *.py[cod]
-*.pyc
 *$py.class
-
-
-.env
-# Virtual env (đã đúng)
-.venv/
-venv/
 
 # Environment
 .env
 !.env.example
+
+# Virtual env
+.venv/
+venv/
 
 # Logs
 *.log
