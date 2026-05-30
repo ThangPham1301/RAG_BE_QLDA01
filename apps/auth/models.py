@@ -14,12 +14,8 @@ class User(AbstractUser):
     email = models.EmailField(unique=True, db_index=True)
     phone_number = models.CharField(max_length=20, blank=True, null=True)
     is_email_verified = models.BooleanField(default=False)
-<<<<<<< HEAD
-    two_factor_enabled = models.BooleanField(default=False)
-=======
     is_two_factor_enabled = models.BooleanField(default=False)
     auth_token_version = models.PositiveIntegerField(default=0)
->>>>>>> 427532e (feat(auth): implement two-factor authentication and token versioning)
     
     # OAuth fields
     google_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
