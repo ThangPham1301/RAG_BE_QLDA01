@@ -13,16 +13,27 @@ class UserAdmin(BaseUserAdmin):
     """Admin interface for User model."""
     
     list_display = (
+<<<<<<< HEAD
+        'email', 'get_full_name', 'is_email_verified', 'two_factor_enabled', 'is_active',
+        'last_login_at', 'created_at'
+    )
+    list_filter = ('is_email_verified', 'two_factor_enabled', 'is_active', 'created_at')
+=======
         'email', 'get_full_name', 'is_email_verified', 'is_two_factor_enabled', 'is_active',
         'last_login_at', 'created_at'
     )
     list_filter = ('is_email_verified', 'is_two_factor_enabled', 'is_active', 'created_at')
+>>>>>>> 427532e (feat(auth): implement two-factor authentication and token versioning)
     search_fields = ('email', 'first_name', 'last_name', 'google_id')
     ordering = ('-created_at',)
     
     fieldsets = BaseUserAdmin.fieldsets + (
         ('Email & Verification', {
+<<<<<<< HEAD
+            'fields': ('is_email_verified', 'two_factor_enabled')
+=======
             'fields': ('is_email_verified', 'is_two_factor_enabled')
+>>>>>>> 427532e (feat(auth): implement two-factor authentication and token versioning)
         }),
         ('OAuth', {
             'fields': ('google_id',),

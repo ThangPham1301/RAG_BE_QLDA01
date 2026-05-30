@@ -27,11 +27,19 @@ urlpatterns = [
     path('me', views.current_user_view, name='current_user'),
     path('profile', views.update_profile_view, name='update_profile'),
     path('profile/avatar', views.upload_avatar_view, name='upload_avatar'),
+    path('2fa', views.update_two_factor_view, name='update_two_factor'),
     path('cloudinary/sign', views.cloudinary_signature_view, name='cloudinary_sign'),
     path('2fa', views.toggle_two_factor_view, name='toggle_two_factor'),
     path('change-password', views.change_password_view, name='change_password'),
     path('sessions', views.get_sessions_view, name='get_sessions'),
 
+<<<<<<< HEAD
+    # Admin user management
+    path('admin/users', views.admin_users_view, name='admin_users'),
+    path('admin/users/<uuid:user_id>', views.admin_user_detail_view, name='admin_user_detail'),
+    path('admin/users/<uuid:user_id>/reset-password', views.admin_user_reset_password_view, name='admin_user_reset_password'),
+    path('admin/users/<uuid:user_id>/logs', views.admin_user_logs_view, name='admin_user_logs'),
+=======
     # In-app admin user management
     path('admin/users', views.admin_users_view, name='admin_users'),
     path('admin/users/<uuid:user_id>/status', views.admin_user_status_view, name='admin_user_status'),
@@ -40,6 +48,7 @@ urlpatterns = [
     path('admin/users/<uuid:user_id>/reset-password', views.admin_user_reset_password_view, name='admin_user_reset_password'),
     path('admin/users/<uuid:user_id>/logs', views.admin_user_logs_view, name='admin_user_logs'),
     path('admin/users/<uuid:user_id>', views.admin_user_delete_view, name='admin_user_delete'),
+>>>>>>> 427532e (feat(auth): implement two-factor authentication and token versioning)
     path('admin/groups', views.admin_groups_view, name='admin_groups'),
     path('admin/groups/<int:group_id>', views.admin_group_detail_view, name='admin_group_detail'),
     path('admin/permissions', views.admin_permissions_view, name='admin_permissions'),
