@@ -12,7 +12,7 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from apps.auth.jwt import TokenVersionJWTAuthentication
 
 from .models import Project
 from .serializers import ProjectSerializer
@@ -528,7 +528,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
 @require_GET
 def statistics_export_view(request):
-    auth_result = JWTAuthentication().authenticate(Request(request))
+    auth_result = TokenVersionJWTAuthentication().authenticate(Request(request))
     if auth_result is None:
         return HttpResponse('Authentication credentials were not provided.', status=401)
     request.user, request.auth = auth_result

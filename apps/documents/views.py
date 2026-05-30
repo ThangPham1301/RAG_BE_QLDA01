@@ -4,7 +4,7 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from apps.auth.jwt import TokenVersionJWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from django.utils import timezone
 from .models import Document
@@ -235,7 +235,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
             token_str = request.query_params.get('token', '')
             if token_str:
                 try:
-                    jwt_auth = JWTAuthentication()
+                    jwt_auth = TokenVersionJWTAuthentication()
                     validated = jwt_auth.get_validated_token(token_str.encode())
                     user = jwt_auth.get_user(validated)
                 except (InvalidToken, TokenError, Exception):

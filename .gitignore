@@ -3,16 +3,11 @@ __pycache__/
 **/__pycache__/
 *.py[cod]
 *$py.class
-<<<<<<< HEAD
-__pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-.env
-# Virtual env (đã đúng)
-
-
+# Virtual env
 .venv/
 venv/
 env/

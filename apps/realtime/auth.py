@@ -8,6 +8,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import UntypedToken
+from apps.auth.jwt import get_token_version
 
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,9 @@ def get_user_from_token(token):
             logger.warning('Realtime auth failed: token has no %s claim. payload_keys=%s', user_id_claim, list(validated.payload.keys()))
             return AnonymousUser()
         user = get_user_model().objects.get(id=user_id)
+        if get_token_version(validated) != user.auth_token_version:
+            logger.warning('Realtime auth failed: token was revoked for user_id=%s', user_id)
+            return AnonymousUser()
         logger.debug('Realtime auth ok: user_id=%s', user_id)
         return user
     except (InvalidToken, TokenError) as exc:

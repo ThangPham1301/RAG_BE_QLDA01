@@ -2,7 +2,10 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.html import format_html
 
-from .models import User, EmailVerificationToken, OTPToken, PasswordResetToken, AuthSession
+from .models import (
+    User, EmailVerificationToken, OTPToken, PasswordResetToken, AuthSession,
+    TwoFactorLoginChallenge
+)
 
 
 @admin.register(User)
@@ -10,16 +13,27 @@ class UserAdmin(BaseUserAdmin):
     """Admin interface for User model."""
     
     list_display = (
+<<<<<<< HEAD
         'email', 'get_full_name', 'is_email_verified', 'two_factor_enabled', 'is_active',
         'last_login_at', 'created_at'
     )
     list_filter = ('is_email_verified', 'two_factor_enabled', 'is_active', 'created_at')
+=======
+        'email', 'get_full_name', 'is_email_verified', 'is_two_factor_enabled', 'is_active',
+        'last_login_at', 'created_at'
+    )
+    list_filter = ('is_email_verified', 'is_two_factor_enabled', 'is_active', 'created_at')
+>>>>>>> 427532e (feat(auth): implement two-factor authentication and token versioning)
     search_fields = ('email', 'first_name', 'last_name', 'google_id')
     ordering = ('-created_at',)
     
     fieldsets = BaseUserAdmin.fieldsets + (
         ('Email & Verification', {
+<<<<<<< HEAD
             'fields': ('is_email_verified', 'two_factor_enabled')
+=======
+            'fields': ('is_email_verified', 'is_two_factor_enabled')
+>>>>>>> 427532e (feat(auth): implement two-factor authentication and token versioning)
         }),
         ('OAuth', {
             'fields': ('google_id',),
@@ -111,6 +125,41 @@ class OTPTokenAdmin(admin.ModelAdmin):
         else:
             return format_html('<span style="color: red;">✗ Expired</span>')
     
+    get_status.short_description = 'Status'
+
+
+@admin.register(TwoFactorLoginChallenge)
+class TwoFactorLoginChallengeAdmin(admin.ModelAdmin):
+    """Admin interface for 2FA login challenges."""
+
+    list_display = (
+        'user', 'get_status', 'created_at', 'expires_at', 'verified_at'
+    )
+    list_filter = ('is_used', 'created_at', 'expires_at')
+    search_fields = ('user__email', 'token')
+    ordering = ('-created_at',)
+    readonly_fields = ('token', 'created_at', 'verified_at')
+
+    fieldsets = (
+        ('User', {
+            'fields': ('user',)
+        }),
+        ('Challenge', {
+            'fields': ('otp_token', 'token', 'is_used')
+        }),
+        ('Expiry', {
+            'fields': ('created_at', 'expires_at', 'verified_at')
+        }),
+    )
+
+    def get_status(self, obj):
+        """Display challenge status with color."""
+        if obj.is_used:
+            return format_html('<span style="color: green;">Used</span>')
+        if obj.is_valid():
+            return format_html('<span style="color: orange;">Pending</span>')
+        return format_html('<span style="color: red;">Expired</span>')
+
     get_status.short_description = 'Status'
 
 

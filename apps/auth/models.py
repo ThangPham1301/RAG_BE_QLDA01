@@ -14,7 +14,12 @@ class User(AbstractUser):
     email = models.EmailField(unique=True, db_index=True)
     phone_number = models.CharField(max_length=20, blank=True, null=True)
     is_email_verified = models.BooleanField(default=False)
+<<<<<<< HEAD
     two_factor_enabled = models.BooleanField(default=False)
+=======
+    is_two_factor_enabled = models.BooleanField(default=False)
+    auth_token_version = models.PositiveIntegerField(default=0)
+>>>>>>> 427532e (feat(auth): implement two-factor authentication and token versioning)
     
     # OAuth fields
     google_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
@@ -154,11 +159,11 @@ class OTPToken(models.Model):
     
     def verify_otp(self, otp_input):
         """Verify OTP input."""
-        self.attempts += 1
-        self.save(update_fields=['attempts'])
-        
         if not self.is_valid():
             return False
+
+        self.attempts += 1
+        self.save(update_fields=['attempts'])
         
         if self.otp != otp_input:
             return False
@@ -167,6 +172,61 @@ class OTPToken(models.Model):
         self.verified_at = timezone.now()
         self.save(update_fields=['is_used', 'verified_at'])
         return True
+
+
+class TwoFactorLoginChallenge(models.Model):
+    """Short-lived challenge created after the primary login step succeeds."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='two_factor_login_challenges')
+    otp_token = models.OneToOneField(OTPToken, on_delete=models.CASCADE, related_name='login_challenge')
+    token = models.CharField(max_length=255, unique=True, db_index=True)
+    is_used = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    verified_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        verbose_name = 'Two-Factor Login Challenge'
+        verbose_name_plural = 'Two-Factor Login Challenges'
+        indexes = [
+            models.Index(fields=['user', 'is_used']),
+            models.Index(fields=['expires_at']),
+        ]
+
+    def __str__(self):
+        return f"2FA challenge for {self.user.email}"
+
+    @classmethod
+    def create_challenge(cls, user):
+        otp_token = OTPToken.create_otp(user, purpose='login_2fa')
+        expires_at = otp_token.expires_at
+
+        cls.objects.filter(
+            user=user,
+            is_used=False,
+            expires_at__gt=timezone.now()
+        ).update(is_used=True, verified_at=timezone.now())
+
+        return cls.objects.create(
+            user=user,
+            otp_token=otp_token,
+            token=secrets.token_urlsafe(32),
+            expires_at=expires_at,
+        )
+
+    def is_valid(self):
+        return (
+            not self.is_used and
+            timezone.now() < self.expires_at and
+            self.otp_token.is_valid()
+        )
+
+    def mark_as_verified(self):
+        self.is_used = True
+        self.verified_at = timezone.now()
+        self.save(update_fields=['is_used', 'verified_at'])
 
 
 class PasswordResetToken(models.Model):
