@@ -31,6 +31,8 @@ class UserSerializer(serializers.ModelSerializer):
         ]
 
     def get_role(self, obj):
+        if obj.is_superuser:
+            return 'superadmin'
         return 'admin' if obj.is_staff or obj.is_superuser else 'user'
 
     def get_has_usable_password(self, obj):
@@ -79,7 +81,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
 class AdminUserRoleSerializer(serializers.Serializer):
     """Serializer for admin-driven role changes."""
 
-    role = serializers.ChoiceField(choices=['user', 'admin', 'superadmin'])
+    role = serializers.ChoiceField(choices=['user', 'admin'])
 
 
 class AdminUserStatusSerializer(serializers.Serializer):

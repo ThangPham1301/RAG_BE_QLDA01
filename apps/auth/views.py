@@ -271,8 +271,16 @@ def is_admin_user(user):
     return bool(user and user.is_authenticated and (user.is_staff or user.is_superuser))
 
 
+def is_superadmin_user(user):
+    return bool(user and user.is_authenticated and user.is_superuser)
+
+
 def admin_required_response():
     return Response({'detail': 'Admin role is required.'}, status=status.HTTP_403_FORBIDDEN)
+
+
+def superadmin_required_response():
+    return Response({'detail': 'Superadmin role is required.'}, status=status.HTTP_403_FORBIDDEN)
 
 
 @api_view(['POST'])
@@ -597,8 +605,8 @@ def get_sessions_view(request):
 @permission_classes([IsAuthenticated])
 def admin_users_view(request):
     """List and search users for the in-app admin screen."""
-    if not is_admin_user(request.user):
-        return admin_required_response()
+    if not is_superadmin_user(request.user):
+        return superadmin_required_response()
 
     search = (request.query_params.get('search') or '').strip()
     role = (request.query_params.get('role') or '').strip()
@@ -616,8 +624,6 @@ def admin_users_view(request):
 
     if role == 'admin':
         users = users.filter(is_staff=True, is_superuser=False)
-    elif role == 'superadmin':
-        users = users.filter(is_superuser=True)
     elif role == 'user':
         users = users.filter(is_staff=False, is_superuser=False)
 
@@ -633,8 +639,8 @@ def admin_users_view(request):
 @permission_classes([IsAuthenticated])
 def admin_user_status_view(request, user_id):
     """Lock or unlock a user account."""
-    if not is_admin_user(request.user):
-        return admin_required_response()
+    if not is_superadmin_user(request.user):
+        return superadmin_required_response()
 
     try:
         target = User.objects.get(id=user_id)
@@ -643,6 +649,9 @@ def admin_user_status_view(request, user_id):
 
     if target.id == request.user.id:
         return Response({'detail': 'You cannot lock your own account.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if target.is_superuser:
+        return Response({'detail': 'The root admin account cannot be locked.'}, status=status.HTTP_400_BAD_REQUEST)
 
     serializer = AdminUserStatusSerializer(data=request.data)
     if not serializer.is_valid():
@@ -661,8 +670,8 @@ def admin_user_status_view(request, user_id):
 @permission_classes([IsAuthenticated])
 def admin_user_role_view(request, user_id):
     """Assign application role for a user."""
-    if not is_admin_user(request.user):
-        return admin_required_response()
+    if not is_superadmin_user(request.user):
+        return superadmin_required_response()
 
     try:
         target = User.objects.get(id=user_id)
@@ -672,20 +681,16 @@ def admin_user_role_view(request, user_id):
     if target.id == request.user.id:
         return Response({'detail': 'You cannot change your own role.'}, status=status.HTTP_400_BAD_REQUEST)
 
+    if target.is_superuser:
+        return Response({'detail': 'The root admin role cannot be changed.'}, status=status.HTTP_400_BAD_REQUEST)
+
     serializer = AdminUserRoleSerializer(data=request.data)
     if not serializer.is_valid():
         return Response({'detail': format_serializer_errors(serializer.errors)}, status=status.HTTP_400_BAD_REQUEST)
 
     role = serializer.validated_data['role']
-    if role == 'superadmin' and not request.user.is_superuser:
-        return Response({'detail': 'Only a superadmin can grant superadmin role.'}, status=status.HTTP_403_FORBIDDEN)
-
-    if target.is_superuser and not request.user.is_superuser:
-        return Response({'detail': 'Only a superadmin can change another superadmin.'}, status=status.HTTP_403_FORBIDDEN)
-
-    target.is_staff = role in ['admin', 'superadmin']
-    target.is_superuser = role == 'superadmin'
-    target.save(update_fields=['is_staff', 'is_superuser'])
+    target.is_staff = role == 'admin'
+    target.save(update_fields=['is_staff'])
     revoke_all_user_sessions(target)
 
     return Response(AdminUserSerializer(target).data, status=status.HTTP_200_OK)
@@ -695,8 +700,8 @@ def admin_user_role_view(request, user_id):
 @permission_classes([IsAuthenticated])
 def admin_user_groups_view(request, user_id):
     """Assign Django auth groups to a user."""
-    if not is_admin_user(request.user):
-        return admin_required_response()
+    if not is_superadmin_user(request.user):
+        return superadmin_required_response()
 
     try:
         target = User.objects.get(id=user_id)
@@ -721,13 +726,16 @@ def admin_user_groups_view(request, user_id):
 @permission_classes([IsAuthenticated])
 def admin_user_reset_password_view(request, user_id):
     """Reset a user's password and invalidate every existing session/token."""
-    if not is_admin_user(request.user):
-        return admin_required_response()
+    if not is_superadmin_user(request.user):
+        return superadmin_required_response()
 
     try:
         target = User.objects.get(id=user_id)
     except User.DoesNotExist:
         return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if target.is_superuser:
+        return Response({'detail': 'The root admin password cannot be reset from user management.'}, status=status.HTTP_400_BAD_REQUEST)
 
     serializer = AdminResetPasswordSerializer(data=request.data)
     if not serializer.is_valid():
@@ -744,8 +752,8 @@ def admin_user_reset_password_view(request, user_id):
 @permission_classes([IsAuthenticated])
 def admin_user_delete_view(request, user_id):
     """Delete a user account."""
-    if not is_admin_user(request.user):
-        return admin_required_response()
+    if not is_superadmin_user(request.user):
+        return superadmin_required_response()
 
     try:
         target = User.objects.get(id=user_id)
@@ -755,25 +763,14 @@ def admin_user_delete_view(request, user_id):
     if target.id == request.user.id:
         return Response({'detail': 'You cannot delete your own account.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if target.is_superuser and not request.user.is_superuser:
-        return Response({'detail': 'Only a superadmin can delete another superadmin.'}, status=status.HTTP_403_FORBIDDEN)
+    if target.is_superuser:
+        return Response({'detail': 'The root admin account cannot be deleted.'}, status=status.HTTP_400_BAD_REQUEST)
 
     target.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def admin_user_logs_view(request, user_id):
-    """Return recent account activity logs for a user."""
-    if not is_admin_user(request.user):
-        return admin_required_response()
-
-    try:
-        target = User.objects.get(id=user_id)
-    except User.DoesNotExist:
-        return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
-
+def build_user_activity_logs(target):
     logs = []
 
     for session in target.auth_sessions.order_by('-created_at')[:30]:
@@ -797,6 +794,7 @@ def admin_user_logs_view(request, user_id):
             'title': f'OTP generated for {otp.purpose}',
             'created_at': otp.created_at,
             'metadata': {
+                'purpose': otp.purpose,
                 'is_used': otp.is_used,
                 'attempts': otp.attempts,
                 'expires_at': otp.expires_at,
@@ -818,15 +816,40 @@ def admin_user_logs_view(request, user_id):
         })
 
     logs.sort(key=lambda item: item['created_at'], reverse=True)
-    return Response({'user': AdminUserSerializer(target).data, 'logs': logs[:80]}, status=status.HTTP_200_OK)
+    return logs[:80]
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def current_user_logs_view(request):
+    """Return recent account activity logs for the authenticated user."""
+    return Response({
+        'user': UserSerializer(request.user).data,
+        'logs': build_user_activity_logs(request.user),
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_user_logs_view(request, user_id):
+    """Return recent account activity logs for a user."""
+    if not is_superadmin_user(request.user):
+        return superadmin_required_response()
+
+    try:
+        target = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    return Response({'user': AdminUserSerializer(target).data, 'logs': build_user_activity_logs(target)}, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def admin_permissions_view(request):
     """List permissions available for group assignment."""
-    if not is_admin_user(request.user):
-        return admin_required_response()
+    if not is_superadmin_user(request.user):
+        return superadmin_required_response()
 
     permissions = Permission.objects.select_related('content_type').order_by(
         'content_type__app_label',
@@ -840,8 +863,8 @@ def admin_permissions_view(request):
 @permission_classes([IsAuthenticated])
 def admin_groups_view(request):
     """List or create user groups."""
-    if not is_admin_user(request.user):
-        return admin_required_response()
+    if not is_superadmin_user(request.user):
+        return superadmin_required_response()
 
     if request.method == 'GET':
         groups = Group.objects.prefetch_related('permissions').order_by('name')
@@ -859,8 +882,8 @@ def admin_groups_view(request):
 @permission_classes([IsAuthenticated])
 def admin_group_detail_view(request, group_id):
     """Update or delete a user group."""
-    if not is_admin_user(request.user):
-        return admin_required_response()
+    if not is_superadmin_user(request.user):
+        return superadmin_required_response()
 
     try:
         group = Group.objects.get(id=group_id)

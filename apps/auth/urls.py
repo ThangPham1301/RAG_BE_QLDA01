@@ -31,6 +31,7 @@ urlpatterns = [
     path('2fa', views.toggle_two_factor_view, name='toggle_two_factor'),
     path('change-password', views.change_password_view, name='change_password'),
     path('sessions', views.get_sessions_view, name='get_sessions'),
+    path('me/logs', views.current_user_logs_view, name='current_user_logs'),
 
     # In-app admin user management
     path('admin/users', views.admin_users_view, name='admin_users'),

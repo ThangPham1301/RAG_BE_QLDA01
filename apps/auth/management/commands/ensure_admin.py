@@ -44,6 +44,7 @@ class Command(BaseCommand):
         user.is_superuser = True
         user.set_password(password)
         user.save()
+        User.objects.exclude(id=user.id).filter(is_superuser=True).update(is_superuser=False, is_staff=True)
 
         action = 'Created' if created else 'Updated'
         self.stdout.write(self.style.SUCCESS(f'{action} admin account: {email}'))
