@@ -14,10 +14,6 @@ from .models import (
 
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for User model."""
-<<<<<<< HEAD
-=======
-
->>>>>>> 77d0dce (feat(auth): add two-factor authentication support and admin user management)
     role = serializers.SerializerMethodField()
     has_usable_password = serializers.SerializerMethodField()
     
@@ -26,85 +22,16 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'email', 'first_name', 'last_name', 'username',
             'phone_number', 'avatar_url', 'bio', 'is_email_verified',
-<<<<<<< HEAD
-<<<<<<< HEAD
-            'is_staff', 'is_superuser', 'role',
-            'created_at', 'updated_at', 'last_login_at'
-        ]
-        read_only_fields = [
-            'id', 'is_email_verified', 'is_staff', 'is_superuser', 'role',
-=======
-            'two_factor_enabled', 'is_staff', 'is_superuser', 'role',
-            'created_at', 'updated_at', 'last_login_at'
-        ]
-        read_only_fields = [
-            'id', 'is_email_verified', 'two_factor_enabled', 'is_staff', 'is_superuser', 'role',
->>>>>>> 77d0dce (feat(auth): add two-factor authentication support and admin user management)
-            'created_at', 'updated_at', 'last_login_at'
-=======
             'is_two_factor_enabled', 'is_staff', 'is_superuser', 'role',
             'has_usable_password', 'created_at', 'updated_at', 'last_login_at'
         ]
         read_only_fields = [
             'id', 'is_email_verified', 'is_two_factor_enabled', 'is_staff', 'is_superuser', 'role',
             'has_usable_password', 'created_at', 'updated_at', 'last_login_at'
->>>>>>> 427532e (feat(auth): implement two-factor authentication and token versioning)
         ]
 
     def get_role(self, obj):
-<<<<<<< HEAD
         return 'admin' if obj.is_staff or obj.is_superuser else 'user'
-=======
-        if obj.is_superuser or obj.is_staff:
-            return 'admin'
-        return 'user'
-
-
-class AdminUserSerializer(UserSerializer):
-    """Expanded user payload for admin user management."""
-
-    groups = serializers.SerializerMethodField()
-
-    class Meta(UserSerializer.Meta):
-        fields = UserSerializer.Meta.fields + [
-            'is_active', 'groups', 'date_joined'
-        ]
-        read_only_fields = UserSerializer.Meta.read_only_fields + [
-            'date_joined'
-        ]
-
-    def get_groups(self, obj):
-        return [
-            {'id': group.id, 'name': group.name}
-            for group in obj.groups.all().order_by('name')
-        ]
-
-
-class PermissionSerializer(serializers.ModelSerializer):
-    """Serializer for Django permission metadata."""
-
-    label = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Permission
-        fields = ['id', 'codename', 'name', 'label']
-
-    def get_label(self, obj):
-        return f'{obj.content_type.app_label}.{obj.codename}'
-
-
-class GroupSerializer(serializers.ModelSerializer):
-    """Serializer for Django auth groups and assigned permissions."""
-
-    permissions = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Group
-        fields = ['id', 'name', 'permissions']
-
-    def get_permissions(self, obj):
-        return PermissionSerializer(obj.permissions.all().order_by('content_type__app_label', 'codename'), many=True).data
->>>>>>> 77d0dce (feat(auth): add two-factor authentication support and admin user management)
 
     def get_has_usable_password(self, obj):
         return bool(obj.password) and obj.has_usable_password()
