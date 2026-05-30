@@ -1066,6 +1066,35 @@ def current_user_view(request):
     return Response(UserSerializer(request.user).data, status=status.HTTP_200_OK)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_search_view(request):
+    """Return compact active users for share/invite typeahead suggestions."""
+    query = (request.query_params.get('q') or '').strip()
+    if len(query) < 2:
+        return Response({'results': []}, status=status.HTTP_200_OK)
+
+    users = User.objects.filter(is_active=True).exclude(id=request.user.id)
+    users = users.filter(
+        Q(email__icontains=query)
+        | Q(username__icontains=query)
+        | Q(first_name__icontains=query)
+        | Q(last_name__icontains=query)
+    ).order_by('email')[:10]
+
+    return Response({
+        'results': [
+            {
+                'id': user.id,
+                'email': user.email,
+                'full_name': user.get_full_name() or user.email,
+                'avatar_url': user.avatar_url,
+            }
+            for user in users
+        ]
+    }, status=status.HTTP_200_OK)
+
+
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def update_profile_view(request):

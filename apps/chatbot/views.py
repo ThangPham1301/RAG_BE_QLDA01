@@ -1,5 +1,10 @@
 import logging
+import csv
+import json
+from io import BytesIO
+from io import StringIO
 from django.http import StreamingHttpResponse
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
@@ -23,6 +28,172 @@ logger = logging.getLogger(__name__)
 
 def user_is_admin(user):
     return bool(user and user.is_authenticated and (user.is_staff or user.is_superuser))
+
+
+def _build_simple_pdf(text):
+    """Build a dependency-free text PDF for chat export."""
+    def escape(value):
+        return value.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)')
+
+    lines = []
+    for raw_line in text.splitlines():
+        line = raw_line[:110]
+        while line:
+            lines.append(line[:95])
+            line = line[95:]
+        if raw_line == '':
+            lines.append('')
+    if not lines:
+        lines = ['No chat messages.']
+
+    pages = []
+    for start in range(0, len(lines), 42):
+        page_lines = lines[start:start + 42]
+        content = ['BT', '/F1 10 Tf', '50 790 Td', '14 TL']
+        for index, line in enumerate(page_lines):
+            if index > 0:
+                content.append('T*')
+            content.append(f'({escape(line)}) Tj')
+        content.append('ET')
+        pages.append('\n'.join(content).encode('latin-1', errors='replace'))
+
+    objects = [b'<< /Type /Catalog /Pages 2 0 R >>']
+    page_kids = []
+    for idx, stream in enumerate(pages):
+        page_obj_num = 3 + idx * 2
+        content_obj_num = page_obj_num + 1
+        page_kids.append(f'{page_obj_num} 0 R')
+        objects.append(
+            f'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] '
+            f'/Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> '
+            f'/Contents {content_obj_num} 0 R >>'.encode('latin-1')
+        )
+        objects.append(b'<< /Length ' + str(len(stream)).encode('ascii') + b' >>\nstream\n' + stream + b'\nendstream')
+    objects.insert(1, f'<< /Type /Pages /Kids [{" ".join(page_kids)}] /Count {len(pages)} >>'.encode('latin-1'))
+
+    output = bytearray(b'%PDF-1.4\n')
+    offsets = [0]
+    for number, obj in enumerate(objects, start=1):
+        offsets.append(len(output))
+        output.extend(f'{number} 0 obj\n'.encode('ascii'))
+        output.extend(obj)
+        output.extend(b'\nendobj\n')
+    xref_offset = len(output)
+    output.extend(f'xref\n0 {len(objects) + 1}\n0000000000 65535 f \n'.encode('ascii'))
+    for offset in offsets[1:]:
+        output.extend(f'{offset:010d} 00000 n \n'.encode('ascii'))
+    output.extend(
+        f'trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF'.encode('ascii')
+    )
+    return bytes(output)
+
+
+def _source_label(source):
+    if isinstance(source, dict):
+        return str(source.get('document_title') or source.get('document_id') or source)
+    return str(source)
+
+
+def _build_chat_docx(session, messages):
+    from docx import Document
+
+    doc = Document()
+    doc.add_heading(session.title or 'Chat export', level=1)
+    doc.add_paragraph(f'Project: {session.project.name}')
+    doc.add_paragraph(f'Created: {session.created_at.isoformat()}')
+    doc.add_paragraph(f'Updated: {session.updated_at.isoformat()}')
+
+    for message in messages:
+        doc.add_heading(f'{message.role.upper()} - {message.created_at.isoformat()}', level=2)
+        doc.add_paragraph(message.content or '')
+        if message.sources:
+            doc.add_paragraph('Sources: ' + ', '.join(_source_label(source) for source in message.sources if source))
+
+    buffer = BytesIO()
+    doc.save(buffer)
+    return buffer.getvalue()
+
+
+def build_chat_export_response(session, request):
+    export_format = request.query_params.get('format', 'docx').lower()
+    if export_format == 'doc':
+        export_format = 'docx'
+    if export_format not in {'docx', 'pdf', 'csv', 'txt', 'json'}:
+        return Response({'error': 'format must be docx, pdf, csv, txt, or json'}, status=status.HTTP_400_BAD_REQUEST)
+
+    messages = list(session.messages.order_by('created_at'))
+    filename_base = f'chat-{session.id}'
+
+    payload = {
+        'id': session.id,
+        'title': session.title,
+        'project': session.project.name,
+        'created_at': session.created_at.isoformat(),
+        'updated_at': session.updated_at.isoformat(),
+        'messages': ChatMessageSerializer(messages, many=True).data,
+    }
+
+    if export_format == 'docx':
+        response = HttpResponse(
+            _build_chat_docx(session, messages),
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename_base}.docx"'
+        return response
+
+    if export_format == 'json':
+        response = HttpResponse(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            content_type='application/json; charset=utf-8',
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename_base}.json"'
+        return response
+
+    if export_format == 'csv':
+        buffer = StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(['Chat title', session.title])
+        writer.writerow(['Project', session.project.name])
+        writer.writerow([])
+        writer.writerow(['Created at', 'Role', 'Content', 'Sources'])
+        for message in messages:
+            sources = '; '.join(
+                _source_label(source)
+                for source in (message.sources or [])
+                if source
+            )
+            writer.writerow([message.created_at.isoformat(), message.role, message.content, sources])
+        response = HttpResponse(buffer.getvalue(), content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="{filename_base}.csv"'
+        return response
+
+    lines = [
+        f'Chat: {session.title}',
+        f'Project: {session.project.name}',
+        f'Created: {session.created_at.isoformat()}',
+        '',
+    ]
+    for message in messages:
+        lines.append(f'[{message.created_at.isoformat()}] {message.role.upper()}')
+        lines.append(message.content)
+        if message.sources:
+            source_labels = [
+                _source_label(source)
+                for source in message.sources
+                if source
+            ]
+            lines.append(f'Sources: {", ".join(source_labels)}')
+        lines.append('')
+    text = '\n'.join(lines)
+
+    if export_format == 'txt':
+        response = HttpResponse(text, content_type='text/plain; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="{filename_base}.txt"'
+        return response
+
+    response = HttpResponse(_build_simple_pdf(text), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename_base}.pdf"'
+    return response
 
 
 class ChatSessionViewSet(viewsets.ModelViewSet):
@@ -125,6 +296,20 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
         messages = session.messages.order_by('created_at')
         serializer = ChatMessageSerializer(messages, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], url_path='export')
+    def export(self, request, pk=None):
+        """Export the full chat session including user questions, assistant answers, and sources."""
+        session = self.get_object()
+        return build_chat_export_response(session, request)
+
+
+class ChatSessionExportView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, pk=None):
+        session = get_object_or_404(ChatSession, id=pk, user=request.user, is_deleted=False)
+        return build_chat_export_response(session, request)
 
 
 class ChatSendView(APIView):

@@ -11,7 +11,6 @@ from .serializers import (
 	ChatMessageSerializer,
 	ChatMessageCreateSerializer
 )
-from .chat_service import ChatService
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +171,8 @@ class AskQuestionView(APIView):
 		logger.info(f'[AskQuestionView] session_id={session_id}, question={question[:50]}')
 		
 		try:
+			from .chat_service import ChatService
+
 			chat_service = ChatService()
 			result = chat_service.ask_question(session_id, question)
 			

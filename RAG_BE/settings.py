@@ -26,7 +26,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-wgv&6x%1@0l&3$(0mfu)+lqovf#cp=egqs9tavhs+$$lpb9f#@')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', default=True, cast=bool)
+def parse_debug(value):
+    normalized = str(value).strip().lower()
+    if normalized in {'release', 'prod', 'production'}:
+        return False
+    return normalized in {'1', 'true', 'yes', 'on', 'debug', 'development', 'dev'}
+
+
+DEBUG = config('DEBUG', default=True, cast=parse_debug)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')])
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:5173,http://localhost:3000', cast=lambda v: [s.strip() for s in v.split(',')])

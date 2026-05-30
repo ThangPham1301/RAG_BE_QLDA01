@@ -25,6 +25,7 @@ urlpatterns = [
     
     # User endpoints
     path('me', views.current_user_view, name='current_user'),
+    path('users/search', views.user_search_view, name='user_search'),
     path('profile', views.update_profile_view, name='update_profile'),
     path('profile/avatar', views.upload_avatar_view, name='upload_avatar'),
     path('cloudinary/sign', views.cloudinary_signature_view, name='cloudinary_sign'),
